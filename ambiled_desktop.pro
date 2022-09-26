@@ -15,11 +15,11 @@ SOURCES += \
     dx9screen.cpp \
     dxgiscreen.cpp \
     execthread.cpp \
-    filterprocess.cpp \
     gdiscreen.cpp \
     imageprocess.cpp \
     imagetransform.cpp \
     leds.cpp \
+    lowpassfilterprocess.cpp \
     main.cpp \
     processmanager.cpp \
     scaleprocess.cpp \
@@ -36,11 +36,11 @@ HEADERS += \
     dx9screen.h \
     dxgiscreen.h \
     execthread.h \
-    filterprocess.h \
     gdiscreen.h \
     imageprocess.h \
     imagetransform.h \
     leds.h \
+    lowpassfilterprocess.h \
     processmanager.h \
     scaleprocess.h \
     screen.h \

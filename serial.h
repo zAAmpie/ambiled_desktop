@@ -3,7 +3,7 @@
 #include <QObject>
 #include <QImage>
 #include <QtSerialPort/QSerialPort>
-#include "util.h"
+#include "types.h"
 
 #define CRC_CHECK 0
 #ifndef CRC_CHECK

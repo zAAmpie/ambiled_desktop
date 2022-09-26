@@ -1,4 +1,4 @@
-#include "filterprocess.h"
+#include "lowpassfilterprocess.h"
 
 FilterProcess::FilterProcess()
 {

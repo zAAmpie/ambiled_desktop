@@ -1,5 +1,7 @@
 #pragma once
 
+#include "types.h"
+
 #define PI 3.14159265
 #define INT_TO_BYTE(intValue) static_cast<BYTE>(intValue)
 
