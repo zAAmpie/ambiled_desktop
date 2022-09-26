@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/AmbiLED">
+        <file alias="monitor_icon">Resources/monitor_icon.ico</file>
+    </qresource>
+</RCC>
