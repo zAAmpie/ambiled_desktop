@@ -5,14 +5,14 @@
 class GDIScreen : public Screen
 {
 public:
-    GDIScreen(const CaptureMode type, ScreenSize size);
-    GDIScreen(const CaptureMode);
+    GDIScreen();
     ~GDIScreen();
 
-    //Main function to return the captured screen
+    //Get methods
+    CaptureMode type() const {return Screen::GDIMode;}
+
+    //Main function to start capturing the screen
     QImage capture();
-private:
-    QImage pBuffer;
 };
 
 

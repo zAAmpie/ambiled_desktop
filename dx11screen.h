@@ -1,19 +1,17 @@
-#ifndef DX11SCREEN_H
-#define DX11SCREEN_H
+#pragma once
 
 #include "screen.h"
 
 class DX11Screen : public Screen
 {
 public:
-    DX11Screen(const CaptureMode type, ScreenSize size);
-    DX11Screen(const CaptureMode);
+    DX11Screen();
     ~DX11Screen();
 
-    //Main function to return the captured screen
+    //Get methods
+    CaptureMode type() const {return Screen::DirectX11Mode;}
+
+    //Main function to start capturing the screen
     QImage capture();
-private:
-    QImage pBuffer;
 };
 
-#endif // DX11SCREEN_H

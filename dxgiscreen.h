@@ -5,13 +5,13 @@
 class DXGIScreen : public Screen
 {
 public:
-    DXGIScreen(const CaptureMode type, ScreenSize size);
-    DXGIScreen(const CaptureMode);
+    DXGIScreen();
     ~DXGIScreen();
 
-    //Main function to return the captured screen
+    //Get methods
+    CaptureMode type() const {return Screen::DXGIMode;}
+
+    //Main function to start capturing the screen
     QImage capture();
-private:
-    QImage pBuffer;
 };
 

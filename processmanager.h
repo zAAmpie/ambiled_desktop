@@ -3,12 +3,15 @@
 #include "imageprocess.h"
 #include "imagetransform.h"
 #include <QMap>
+#include <QObject>
 
-class ProcessManager
+class ProcessManager : public QObject
 {
+    Q_OBJECT
     /* Manages all processing of a given screen image */
 public:
     ProcessManager();
+    ~ProcessManager();
 
     //Processing can be enabled and disabled (0 - n)
     void enableProcess(ImageProcess::ProcessType type);
@@ -21,10 +24,16 @@ public:
     void setTransform(ImageTransform::TransformType type);
 
     //Process the input screen and provide an LED output
-    ImageStripsInput process(QImage screen);
+    void startProcess(QImage screen);
+signals:
+    //Signals when processing has been completed
+    void readyProcess(ImageStrips strips);
 private:
-    QList<ImageProcess> pProcessList;
+    //Resorts the process list by priority
+    void sortProcessList();
+
+    QList<std::unique_ptr<ImageProcess>> pProcessList;
     QMap<ImageProcess::ProcessType, int> pProcessPriority;
-    ImageTransform pTransform;
+    std::unique_ptr<ImageTransform> pTransform;
 };
 

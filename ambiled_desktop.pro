@@ -32,7 +32,6 @@ SOURCES += \
 HEADERS += \
     ambiled.h \
     blackbarprocess.h \
-    defines.h \
     dx11screen.h \
     dx9screen.h \
     dxgiscreen.h \
@@ -47,6 +46,7 @@ HEADERS += \
     screen.h \
     screenmanager.h \
     serial.h \
+    types.h \
     util.h \
     version.h \
     x11screen.h

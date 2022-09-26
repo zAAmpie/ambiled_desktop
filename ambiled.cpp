@@ -12,7 +12,7 @@ AmbiLED::AmbiLED(QWidget *parent)
       pCaptureIdleMode(false)
 {
     //Register metatypes to use in signal/slot system
-    qRegisterMetaType<ImageStripsInput>("ImageStripsInput");
+    qRegisterMetaType<ImageStrips>("ImageStripsInput");
 	qRegisterMetaType<LEDPositions>("LEDPositions");
 
     //Create map of enum
@@ -483,7 +483,7 @@ void AmbiLED::captureScreen()
     //If Debug Mode, don't capture screen, rather send the test pattern
     if (pDebugMode)
 	{
-        QPair<QImage, ImageStripsInput> output = leds->generateTestPattern();
+        QPair<QImage, ImageStrips> output = leds->generateTestPattern();
 
         sendLEDData(output.first);
         displayStrips(output.second);
@@ -491,7 +491,7 @@ void AmbiLED::captureScreen()
 	}
 }
 
-void AmbiLED::displayStrips(ImageStripsInput outLines)
+void AmbiLED::displayStrips(ImageStrips outLines)
 {
 	if (pCaptureIdleMode)
 	{

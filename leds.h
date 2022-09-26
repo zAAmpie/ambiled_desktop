@@ -8,7 +8,7 @@
  * - Manipulation functions
  * - Converting QImage to an LED representation */
 
-class ImageStripsInput
+class ImageStrips
 {
     /* Larger representation of input lines serving as input to the LED transformation
      * Essentially a 1xN or Nx1 image for each edge of the screen */
@@ -95,7 +95,7 @@ public:
     } LEDStatus;
 
     //Transform image represenation to LED representation
-    void updateLED(const ImageStripsInput& lines);
+    void updateLED(const ImageStrips& lines);
 
     //Basic function to transform lux to a brightness value
     static int transformLuxToBrightness(int lux);
@@ -130,7 +130,7 @@ public:
     LEDStatus getStatus() const {return pStatus;}
 
     //Get a test LED representation
-    QPair<QImage, ImageStripsInput> generateTestPattern();
+    QPair<QImage, ImageStrips> generateTestPattern();
 
 private:
     const int LEDStripExcess = 10;
@@ -138,7 +138,7 @@ private:
     QImage transformBrightness(QImage inputImage, double brightness, ColourTemperature temperature);
 
     //Transform image represenation to LED representation
-    QImage transformToLED(const ImageStripsInput& lines);
+    QImage transformToLED(const ImageStrips& lines);
 
     //Private constants
     QImage pLEDImage; //The main representation of the output LED strip in memory

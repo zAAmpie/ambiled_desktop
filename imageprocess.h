@@ -1,5 +1,7 @@
 #pragma once
 
+#include "types.h"
+
 class QImage;
 
 class ImageProcess
@@ -10,11 +12,12 @@ public:
     enum ProcessType {BlackBarRemoval, SampleScale, LinearScale, CubicScale, SimpleLowPassFilter};
 
     ImageProcess();
+    ~ImageProcess();
 
     //Returns the type
     virtual ProcessType type() const;
 
     //Virtual function that processes an input image into an output
-    virtual QImage process(QImage inputImage);
+    virtual QImage process(QImage inputImage, ImageSize outputSize = ImageSize(0,0));
 };
 

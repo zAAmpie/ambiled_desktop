@@ -18,7 +18,7 @@
 #include "leds.h"
 
 Q_DECLARE_METATYPE(LEDPositions)
-Q_DECLARE_METATYPE(ImageStripsInput)
+Q_DECLARE_METATYPE(ImageStrips)
 
 class QMainWindow;
 
@@ -61,7 +61,7 @@ private slots:
 	void captureScreen();
 
 	//Display image on label
-    void displayStrips(ImageStripsInput outLines);
+    void displayStrips(ImageStrips outLines);
 
 	//Display full screen on label
     void displayFullScreen(QImage image);

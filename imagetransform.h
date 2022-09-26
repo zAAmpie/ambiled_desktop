@@ -14,6 +14,6 @@ public:
     virtual TransformType type() const;
 
     //Virtual function that transform an input image into strips
-    virtual ImageStripsInput transform(QImage inputImage, const LEDPositions &positions);
+    virtual ImageStrips transform(QImage inputImage, const LEDPositions &positions);
 };
 

@@ -14,14 +14,14 @@ LEDS::~LEDS()
 }
 
 //Update LED data
-void LEDS::updateLED(const ImageStripsInput& lines)
+void LEDS::updateLED(const ImageStrips& lines)
 {
     Q_ASSERT(!lines.isNull());
     pLEDImage = transformToLED(lines);
 }
 
 //Transform image represenation to LED representation
-QImage LEDS::transformToLED(const ImageStripsInput& lines)
+QImage LEDS::transformToLED(const ImageStrips& lines)
 {
     /*
     Screen is shown from front
@@ -147,10 +147,10 @@ QImage LEDS::getStrip()
 }
 
 //Get a test LED representation
-QPair<QImage, ImageStripsInput> LEDS::generateTestPattern()
+QPair<QImage, ImageStrips> LEDS::generateTestPattern()
 {
     //Generate test pattern input images
-    ImageStripsInput stripImages;
+    ImageStrips stripImages;
 
     //Create the images
     stripImages.bottomLine = QImage(pPositions.getBottomCount(), 1, QImage::Format_RGB32);
@@ -165,7 +165,7 @@ QPair<QImage, ImageStripsInput> LEDS::generateTestPattern()
     stripImages.rightLine.fill(Qt::yellow);
 
     //Transform input images to LEDs and return both
-    return QPair<QImage, ImageStripsInput>(transformToLED(stripImages), stripImages);
+    return QPair<QImage, ImageStrips>(transformToLED(stripImages), stripImages);
 }
 
 //Transform the main representation and return a brightness adjusted version
