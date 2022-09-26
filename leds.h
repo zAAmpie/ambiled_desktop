@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QImage>
-#include "util.h"
 
 /* Header file containing everything to do with the LEDs, i.e.
  * - Positions

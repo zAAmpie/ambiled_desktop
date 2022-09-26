@@ -8,7 +8,7 @@
 
 class LowPassFilterProcess : public ImageProcess
 {
-    /* Filters given image with state */
+    /* Low pass filter to get rid of high frequency noise in given image. Stateful! */
 public:
     LowPassFilterProcess(int filterCutoff = DEFAULT_FILTER_CUTOFF_HZ);
 

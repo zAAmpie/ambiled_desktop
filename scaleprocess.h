@@ -5,7 +5,7 @@
 
 class ScaleProcess : public ImageProcess
 {
-    /* Scales an image for further processing */
+    /* Scales an image for further processing using a variety of interpolation methods */
 public:
     ScaleProcess(ImageProcess::ProcessType type, ImageSize outputSize);
 

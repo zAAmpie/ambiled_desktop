@@ -11,6 +11,8 @@ CONFIG += c++17
 SOURCES += \
     ambiled.cpp \
     blackbarprocess.cpp \
+    blockstriptransform.cpp \
+    blocktransform.cpp \
     dx11screen.cpp \
     dx9screen.cpp \
     dxgiscreen.cpp \
@@ -26,12 +28,16 @@ SOURCES += \
     screen.cpp \
     screenmanager.cpp \
     serial.cpp \
+    simpletransform.cpp \
+    striptransform.cpp \
     util.cpp \
     x11screen.cpp
 
 HEADERS += \
     ambiled.h \
     blackbarprocess.h \
+    blockstriptransform.h \
+    blocktransform.h \
     dx11screen.h \
     dx9screen.h \
     dxgiscreen.h \
@@ -46,6 +52,8 @@ HEADERS += \
     screen.h \
     screenmanager.h \
     serial.h \
+    simpletransform.h \
+    striptransform.h \
     types.h \
     util.h \
     version.h \
