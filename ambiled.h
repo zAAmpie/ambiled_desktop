@@ -1,6 +1,5 @@
 #pragma once
 
-//Attribute icon
 //<div>Icons made by <a href="https://www.flaticon.com/authors/xnimrodx" title="xnimrodx">xnimrodx</a> from <a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a></div>
 
 #include <QMainWindow>
@@ -16,7 +15,6 @@
 #include "screenmanager.h"
 #include "processmanager.h"
 #include "leds.h"
-#include "pixmaputils.h"
 
 Q_DECLARE_METATYPE(LEDPositions)
 Q_DECLARE_METATYPE(ImageStrips)
