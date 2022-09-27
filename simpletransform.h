@@ -10,9 +10,12 @@ public:
     ~SimpleTransform();
 
     //Return type
-    TransformType type() const {return TransformType::SimpleTransform;}
+    TransformType type() const override {return TransformType::SimpleTransform;}
 
     //Virtual function that transform an input image into strips
-    ImageStrips transform(QImage inputImage, const StripSizes sizes);
+    ImageStrips transform(QImage inputImage, const StripSizes sizes) override;
+private:
+    //Averages an individual strip using block strip
+    QImage averageStrip(const QImage &input, ImageSize size, StripPlacement placement);
 };
 

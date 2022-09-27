@@ -13,7 +13,7 @@ struct ScreenSize
     ScreenSize() : height(0), width(0) {}
 
     //Zero values indicate an unset size
-    bool isSet() {return height > 0 || width > 0;}
+    bool isSet() const {return height > 0 || width > 0;}
 };
 using ImageSize = ScreenSize;
 
@@ -31,5 +31,5 @@ struct StripSizes
     StripSizes() : top(0), bottom(0), left(0), right(0) {}
 
     //Zero values indicate unset
-    bool isSet() {return top > 0 || bottom > 0 || left > 0 || right > 0;}
+    bool isSet() const {return top > 0 || bottom > 0 || left > 0 || right > 0;}
 };

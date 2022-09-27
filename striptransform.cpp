@@ -17,6 +17,9 @@ StripTransform::~StripTransform()
 //Function that transform an input image into strips
 ImageStrips StripTransform::transform(QImage inputImage, const StripSizes sizes)
 {
+    Q_ASSERT(!inputImage.isNull());
+    Q_ASSERT(sizes.isSet());
+
     ImageStrips outStrips;
 
     //Do each of the strips

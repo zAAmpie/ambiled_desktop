@@ -17,6 +17,9 @@ BlockTransform::~BlockTransform()
 //Function that transform an input image into strips
 ImageStrips BlockTransform::transform(QImage inputImage, const StripSizes sizes)
 {
+    Q_ASSERT(!inputImage.isNull());
+    Q_ASSERT(sizes.isSet());
+
     ImageStrips outStrips;
 
     //Do each of the strips
