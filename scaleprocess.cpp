@@ -6,6 +6,31 @@ ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, ImageSize outputSize)
     Q_ASSERT(outputSize.isSet());
     Q_ASSERT(type == ProcessType::LinearScale || type == ProcessType::CubicScale || type == ProcessType::SampleScale); //Should ensure it's actually a scaler here
     pOutputSize = outputSize;
+    pScalePercentage = 0.0f;
+
+    //Override to be linear scale if the type is incorrect
+    if (pType != ProcessType::LinearScale && pType != ProcessType::CubicScale && pType != ProcessType::SampleScale)
+        pType = ProcessType::LinearScale;
+
+#ifdef Q_OS_WIN
+    //Create WIC factory
+    HRESULT hr = CoCreateInstance(
+        CLSID_WICImagingFactory,
+        NULL,
+        CLSCTX_INPROC_SERVER,
+        IID_PPV_ARGS(&pWICFactory)
+    );
+    Q_ASSERT(SUCCEEDED(hr));
+#endif
+}
+
+//Constructor
+ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, float scalePercentage) : pType(type)
+{
+    Q_ASSERT(scalePercentage > 0.0f);
+    Q_ASSERT(type == ProcessType::LinearScale || type == ProcessType::CubicScale || type == ProcessType::SampleScale); //Should ensure it's actually a scaler here
+    pScalePercentage = scalePercentage;
+    pOutputSize = ImageSize();
 
     //Override to be linear scale if the type is incorrect
     if (pType != ProcessType::LinearScale && pType != ProcessType::CubicScale && pType != ProcessType::SampleScale)
@@ -39,6 +64,13 @@ ScaleProcess::~ScaleProcess()
 //For Windows, we'll use the WIC library to do the scaling
 QImage ScaleProcess::process(QImage inputImage)
 {
+    //Dynamically set ImageSize if percentage scaling is enabled
+    if (pScalePercentage > 0.0f)
+    {
+        pOutputSize.height = qCeil(static_cast<float>(inputImage.height()) * pScalePercentage);
+        pOutputSize.width = qCeil(static_cast<float>(inputImage.width()) * pScalePercentage);
+    }
+
     //Create bitmap from screen data
     IWICBitmap *WICBitmap = nullptr;
     HRESULT hr = pWICFactory->CreateBitmapFromMemory(inputImage.width(), inputImage.height(), GUID_WICPixelFormat32bppBGRA, inputImage.bytesPerLine(), inputImage.sizeInBytes(), inputImage.bits(), &WICBitmap);
@@ -90,6 +122,13 @@ QImage ScaleProcess::process(QImage inputImage)
 //For everything else, use QImage scalers
 QImage ScaleProcess::process(QImage inputImage)
 {
+    //Dynamically set ImageSize if percentage scaling is enabled
+    if (pScalePercentage > 0.0f)
+    {
+        pOutputSize.height = qCeil(static_cast<float>(inputImage.height()) * pScalePercentage);
+        pOutputSize.width = qCeil(static_cast<float>(inputImage.width()) * pScalePercentage);
+    }
+
     //TODO: Actually implement specific scaling methods for non-Windows here
     switch (pType)
     {
