@@ -24,7 +24,7 @@ public:
 
     //Virtual function that transform an input image into strips
     virtual ImageStrips transform(QImage inputImage, const StripSizes sizes);
-private:
+protected:
     //Copy a specified strip width of an image from a specified side
     QImage copyStrip(const QImage input, int stripSizePx, StripPlacement placement);
 };

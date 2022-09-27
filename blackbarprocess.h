@@ -24,7 +24,6 @@ private:
     int getFirstNonBlackLine(const QImage image); //TODO: See if we can speed this up
     int getLastNonBlackLine(const QImage image);
 
-
     float pScanThreshold;
     float pValueThreshold;
 };
