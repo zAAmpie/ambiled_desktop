@@ -1,4 +1,4 @@
-#include "serial.h"
+#include "serialmanager.h"
 //#include <qfile.h>
 #include <qdebug.h>
 #include <algorithm>
