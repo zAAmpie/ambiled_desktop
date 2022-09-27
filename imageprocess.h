@@ -1,6 +1,6 @@
 #pragma once
 
-class QImage;
+#include <QImage>
 
 class ImageProcess
 {
