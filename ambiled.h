@@ -7,20 +7,19 @@
 #include <QSystemTrayIcon>
 #include <QElapsedTimer>
 #include <QSerialPortInfo>
-#include "util.h"
-#include "serial.h"
+#include <QQueue>
+#include <QSettings>
+#include "serialmanager.h"
 #include "ui_ambiled.h"
 #include "execthread.h"
 #include "version.h"
-#include <QQueue>
-#include <QSettings>
 #include "screenmanager.h"
+#include "processmanager.h"
 #include "leds.h"
+#include "pixmaputils.h"
 
 Q_DECLARE_METATYPE(LEDPositions)
 Q_DECLARE_METATYPE(ImageStrips)
-
-class QMainWindow;
 
 class AmbiLED : public QMainWindow
 {
@@ -29,7 +28,7 @@ class AmbiLED : public QMainWindow
 public:
     AmbiLED(QWidget *parent = nullptr);
 	~AmbiLED();
-    enum ArrowDirection { LeftArrow, RightArrow, UpArrow, DownArrow };
+
     enum AmbiLEDSettings {
         SerialPortSetting,
         RefreshRateSetting,
@@ -50,142 +49,134 @@ public:
     };
     Q_ENUM(AmbiLEDSettings)
 
-
 protected:
+    //Re-implemented functions to intercept closing/minimising the UI
 	void closeEvent(QCloseEvent *event);
-
 	void hideEvent(QHideEvent* event);
 
-private slots:
-	//Capture the screen for decoding
-	void captureScreen();
-
-	//Display image on label
-    void displayStrips(ImageStrips outLines);
-
-	//Display full screen on label
-    void displayFullScreen(QImage image);
-
-	//Notification from screen capture that it has failed
-	void captureFailed();
-
-	//Send LED data
-	void sendLEDData(QImage led);
-
-	//Slot to get data from serial port
-	void serialPortDataRead(QByteArray data);
-
-	//Slot to set serial port as ready
-	void serialPortReady();
-
-	//Slot called when lux should be updated
-	void luxValueChanged();
-
-	//Toggle screen capture
-	void toggleCapture();
-
-	//The refresh rate has been changed
-    void refreshRateChanged(int index);
-
-	//Slider has been moved to change brightness
-    void brightnessChanged(int value);
-
-	//Serial port has been changed
-    void serialPortChanged(int);
-
-	//Capture mode has been changed
-    void captureModeChanged(int index);
-
-	//LED positions have been changed
-	void ledPositionsChanged();
-
-	//Colour correction sliders have been changed
-    void colourTemperatureChanged();
-
-	//Colour correction preset has been changed
-    void colourTemperatureComboChanged(int index);
-
-	//Averaging method preset has been changed
-    void averageMethodComboChanged(int index);
-
-	//Serial port wrote some data
-    void serialPortDataWritten(int bytes);
-
-	//Serial device status changed
-	void serialDeviceStatusChanged(bool status);
-
-    //Debug mode toggled
-    void toggleDebugMode();
-
-    //Visualise fullscreen mode toggled
-    void toggleFullscreenMode();
-
-	//Clicked on system tray
-	void trayClicked(QSystemTrayIcon::ActivationReason reason);
-
-	//Update UI elements that require it
-	void updateUIElements();
-
-	//Show popup with device firmware and information
-	void showDeviceFirmware();
-
-	//Setting related
-	void readSettings();
-	void writeSettings();
-
 signals:
-    void updateScreenCapture(const LEDPositions &positions);
+    //===== SCREEN MANAGER SIGNALS FOR SLOTS =====
+    //Nothing
 
-	//Write an image to the serial port
-	void writeLEDImage(QImage led);
+    //===== LEDS SLOTS FOR SIGNALS =====
+    //Nothing
 
-	//Update serial port name
-	void updateSerialPort(QString portName);
+    //===== PROCESS MANAGER SIGNALS FOR SLOTS =====
+    //Process the input screen and provide an LED output
+    void processManagerStartProcess(QImage screen);
+    //TODO: Add full configuration of process manager
+
+    //===== SERIAL MANAGER SIGNALS FOR SLOTS =====
+    //Write an image to the serial port
+    void serialManagerWriteLEDImage(QImage led);
+
 private:
-	void createActions();
-	void createTrayIcon();
-	void createPixmaps();
+    //===== SCREEN MANAGER SLOTS FOR SIGNALS =====
+    //Final processed image is ready
+    void screenManagerReadyFrame(QImage screenImage);
+    //Screen Manager signalled failure
+    void screenManagerFailed(QString message);
+
+    //===== LEDS SLOTS FOR SIGNALS =====
+    //No signals
+
+    //===== PROCESS MANAGER SLOTS FOR SIGNALS =====
+    //Processing has been completed
+    void processManagerReadyProcess(ImageStrips strips);
+    //Processing failure
+    void processManagerFailed(QString message);
+
+    //===== SERIAL MANAGER SLOTS FOR SIGNALS =====
+    //Data read from serial port
+    void serialManagerSerialDataRead(QByteArray data);
+    //Amount of data written to serial port
+    void serialManagerSerialDataWritten(int bytes);
+    //Serial port can transmit more data
+    void serialManagerReadyForTransmit();
+    //DSR changed
+    void serialManagerDsrChanged(bool state);
+    //Serial port has been closed
+    void serialManagerSerialPortClosed();
+    //Device is connected or not
+    void serialManagerDeviceStatusChanged(bool active);
+    //Lux value has changed
+    void serialManagerLuxValueChanged();
+
+    //===== UI SLOTS FOR SIGNALS =====
+    //Toggle screen capture
+    void uiScreenCaptureToggled();
+    //The refresh rate has been changed
+    void uiRefreshRateChanged(int index);
+    //Slider has been moved to change brightness
+    void uiBrightnessChanged(int value);
+    //Capture mode has been changed
+    void uiCaptureModeChanged(int index);
+    //LED positions have been changed
+    void uiLedPositionsChanged();
+    //Colour correction sliders have been changed
+    void uiColourTempSlidersChanged();
+    //Colour correction preset has been changed
+    void uiColourTempComboChanged(int index);
+    //Averaging method preset has been changed
+    void uiAverageMethodComboChanged(int index);
+    //Debug mode toggled
+    void uiDebugModeToggled();
+    //Visualise fullscreen mode toggled
+    void uiFullscreenModeToggled();
+    //Clicked on system tray
+    void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
+
+    //===== CLASS FUNCTIONS =====
+    //Display image on label
+    void displayStrips(ImageStrips outLines);
+    //Display full screen on label
+    void displayFullScreen(QImage image);
+    //Update UI elements that require it
+    void updateUIElements();
+    //Show popup with device firmware and information
+    void showDeviceFirmware();
+    //Setting related
+    void readSettings();
+    void writeSettings();
+
+    //===== UI SETUP FUNCTIONS =====
+    void createActions();
+    void createTrayIcon();
+    void createPixmaps();
     void createSettingsMap();
     void setupGUI();
 
-    QPixmap &drawArrow(QPixmap& input, ArrowDirection direction, Qt::GlobalColor colour = Qt::yellow, int offset = 0, qreal height = -1.0, qreal width = -1.0, QString text = "");
-	QPixmap& drawAverageBars(QPixmap& input, Qt::GlobalColor colour);
-    //void transformBrightness(QImage &led, qreal brightness = 1.0);
-
     //Pointers to bigger objects
-    Serial *serialPort;
-
-    ScreenManager *capture;
-    LEDS *leds;
-    ExecThread *pCaptureThread;
+    std::unique_ptr<SerialManager> pSerialManager;
+    std::unique_ptr<ScreenManager> pScreenManager;
+    std::unique_ptr<ProcessManager> pProcessManager;
+    std::unique_ptr<LEDS> pLeds;
+    std::unique_ptr<ExecThread> pCaptureThread;
 
     Ui::AmbiLEDClass ui;
 
-
-
     //UI variables
-    QAction *quitAction;
-    QAction *configureAction;
-    QAction *suspendAction;
+    std::unique_ptr<QAction> pQuitAction;
+    std::unique_ptr<QAction> pConfigureAction;
+    std::unique_ptr<QAction> pSuspendAction;
 
-	QPixmap connectedPixmap;
-	QPixmap disconnectedPixmap;
+    QPixmap pConnectedPixmap;
+    QPixmap pDisconnectedPixmap;
 
-    QSystemTrayIcon *tray;
-    QMenu *trayMenu;
+    std::unique_ptr<QSystemTrayIcon> pTray;
+    std::unique_ptr<QMenu> pTrayMenu;
 
     //Timers
-	QElapsedTimer *elapsedTimer;
-	QElapsedTimer *elapsedSerialTimer;
-    QTimer *pScreenUpdateTimer;
-	QTimer* uiUpdateTimer;
+    std::unique_ptr<QElapsedTimer> pElapsedCaptureTimer;
+    std::unique_ptr<QElapsedTimer> pElapsedSerialTimer;
+    std::unique_ptr<QTimer> pUiUpdateTimer;
 
     //Local variables
     QQueue<qint64> pFrameAverageQueue;
     QQueue<qint64> pSerialAverageQueue;
 
     QMap<AmbiLEDSettings, QString> pSettingsMap;
-    QSettings *pSettings;
+    std::unique_ptr<QSettings> pSettings;
 
     int pReadCounter;
     int pFrameCounter;
