@@ -23,11 +23,12 @@ SOURCES += \
     leds.cpp \
     lowpassfilterprocess.cpp \
     main.cpp \
+    pixmaputils.cpp \
     processmanager.cpp \
     scaleprocess.cpp \
     screen.cpp \
     screenmanager.cpp \
-    serial.cpp \
+    serialmanager.cpp \
     simpletransform.cpp \
     striptransform.cpp \
     util.cpp \
@@ -47,11 +48,12 @@ HEADERS += \
     imagetransform.h \
     leds.h \
     lowpassfilterprocess.h \
+    pixmaputils.h \
     processmanager.h \
     scaleprocess.h \
     screen.h \
     screenmanager.h \
-    serial.h \
+    serialmanager.h \
     simpletransform.h \
     striptransform.h \
     types.h \
