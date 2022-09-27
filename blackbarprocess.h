@@ -15,10 +15,10 @@ public:
                     float blackValueThreshold = DEFAULT_BLACK_VALUE_THRESHOLD);
     ~BlackBarProcess();
 
-    ProcessType type() const {return ProcessType::BlackBarRemoval;}
+    ProcessType type() const override {return ProcessType::BlackBarRemoval;}
 
     //Process the image and remove black bars
-    QImage process(QImage inputImage);
+    QImage process(QImage inputImage) override;
 private:
     //Test to see if line is black (within a theshold)
     int getFirstNonBlackLine(const QImage image); //TODO: See if we can speed this up
