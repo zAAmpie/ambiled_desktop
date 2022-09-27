@@ -136,7 +136,7 @@ private:
     //Transform the main representation and return a brightness adjusted version
     QImage transformBrightness(QImage inputImage, double brightness, ColourTemperature temperature);
 
-    //Transform image represenation to LED representation
+    //Transform image representation to LED representation
     QImage transformToLED(const ImageStrips& lines);
 
     //Private constants
