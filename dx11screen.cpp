@@ -1,10 +1,15 @@
 #include "dx11screen.h"
 
+#ifdef Q_OS_WIN
 //Constructor
-DX11Screen::DX11Screen()
+DX11Screen::DX11Screen() : Screen()
 {
     pDesktopWnd = GetDesktopWindow();
     pScreenSize = getWindowSize(pDesktopWnd);
+    pBackBuffer = nullptr;
+    pSwapChain = nullptr;
+    pDeviceContext = nullptr;
+    pDevice11 = nullptr;
 
     createVariables();
 }
@@ -55,18 +60,6 @@ QImage DX11Screen::capture()
     pDeviceContext->Unmap(pNewTexture, 0);
 
     return outImage;
-}
-
-//Calculate window size
-ScreenSize DX11Screen::getWindowSize(HWND &window)
-{
-    //Get current window size
-    RECT rect;
-    bool res = GetWindowRect(window, &rect);
-    Q_ASSERT(res);
-    ScreenSize newSize = ScreenSize(qAbs(rect.bottom - rect.top), qAbs(rect.right - rect.left));
-
-    return newSize;
 }
 
 //Create all the variables (after screen size change)
@@ -122,3 +115,5 @@ void DX11Screen::createTexture()
     HRESULT hr = pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&pBackBuffer));
     Q_ASSERT(SUCCEEDED(hr));
 }
+
+#endif

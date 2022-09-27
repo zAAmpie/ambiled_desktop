@@ -71,16 +71,4 @@ void GDIScreen::createBitmap()
     pInfo.bmiHeader.biBitCount = 32;
 }
 
-//Calculate window size
-ScreenSize GDIScreen::getWindowSize(HWND &window)
-{
-    //Get current window size
-    RECT rect;
-    bool res = GetWindowRect(window, &rect);
-    Q_ASSERT(res);
-    ScreenSize newSize = ScreenSize(qAbs(rect.bottom - rect.top), qAbs(rect.right - rect.left));
-
-    return newSize;
-}
-
 #endif

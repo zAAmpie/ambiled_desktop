@@ -2,6 +2,9 @@
 
 #include <QImage>
 #include "types.h"
+#ifdef Q_OS_WIN
+#include <windef.h>
+#endif
 
 class Screen
 {
@@ -19,6 +22,11 @@ public:
     //Main function to start capturing the screen
     virtual QImage capture();
 protected:
+#ifdef Q_OS_WIN
+    //Calculate window size
+    ScreenSize getWindowSize(HWND &window);
+#endif
+
     ScreenSize pScreenSize;
 };
 

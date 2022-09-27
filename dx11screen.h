@@ -19,9 +19,6 @@ public:
     //Main function to start capturing the screen
     QImage capture() override;
 private:
-    //Calculate window size
-    ScreenSize getWindowSize(HWND &window);
-
     //Create variables (typically after screen change)
     void createVariables();
     //Create the swap chain
@@ -30,7 +27,6 @@ private:
     void createTexture();
 
     HWND pDesktopWnd;
-    ScreenSize pScreenSize;
 
     //DirectX11 specific variables
     ID3D11Device *pDevice11;
