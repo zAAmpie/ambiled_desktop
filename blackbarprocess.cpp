@@ -4,9 +4,12 @@
 #include "types.h"
 
 //Constructor
-BlackBarProcess::BlackBarProcess(float scanThresholdPercentage, float blackValueThreshold) : pScanThreshold(scanThresholdPercentage), pValueThreshold(blackValueThreshold)
+BlackBarProcess::BlackBarProcess(float scanThresholdPercentage, float blackValueThreshold) : ImageProcess()
 {
-
+    Q_ASSERT(scanThresholdPercentage > 0.0f && scanThresholdPercentage <= 1.0f);
+    Q_ASSERT(blackValueThreshold >= 0.0f && blackValueThreshold <= 255.0f);
+    pScanThreshold = std::clamp(scanThresholdPercentage, 0.0f, 1.0f);
+    pValueThreshold = std::clamp(blackValueThreshold, 0.0f, 255.0f); //Assume 8-bit colour!
 }
 
 //Destructor
@@ -18,6 +21,8 @@ BlackBarProcess::~BlackBarProcess()
 //Process the image and remove black bars
 QImage BlackBarProcess::process(QImage inputImage)
 {
+    Q_ASSERT(!inputImage.isNull());
+
     //Try and remove any black bars on the top and bottom
     int topLineSkip = getFirstNonBlackLine(inputImage);
     int bottomLineSkip = getLastNonBlackLine(inputImage);
@@ -34,7 +39,8 @@ int BlackBarProcess::getFirstNonBlackLine(const QImage image)
 {
     int idxLine = 0;
     int stopLine = qCeil(static_cast<double>(image.height()) * pScanThreshold);
-    int depth = image.depth() >> 3; //Divide by 8 to get bytes
+    //TODO: Support for 10-bit colour etc.
+    int depth = image.depth() >> 3; //Divide by 8 to get bytes - assume 8-bit colour
     int scanLinePitch = image.width() * depth;
     int blackThreshold = pValueThreshold * scanLinePitch;
     int sum;
@@ -70,7 +76,8 @@ int BlackBarProcess::getLastNonBlackLine(const QImage image)
 {
     int idxLine = image.height() - 1;
     int stopLine = qFloor(static_cast<double>(image.height()) * (1 - pScanThreshold));
-    int depth = image.depth() >> 3; //Divide by 8 to get bytes
+    //TODO: Support for 10-bit colour
+    int depth = image.depth() >> 3; //Divide by 8 to get bytes - assume 8-bit colour
     int scanLinePitch = image.width() * depth;
     int blackThreshold = pValueThreshold * scanLinePitch;
     int sum;
