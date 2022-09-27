@@ -7,28 +7,28 @@
 #include "util.h"
 
 //Constructor
-Serial::Serial(QString portName, QObject *parent) : QObject(parent), pFirmwareVersion("Not connected"), pUpdatesMissed(0)
+SerialManager::SerialManager(QString portName, QObject *parent) : QObject(parent), pFirmwareVersion("Not connected"), pUpdatesMissed(0)
 {
     //Create the serial port
-	serialPort = new QSerialPort(portName);
+    pSerialPort = new QSerialPort(portName);
     pPortName = portName;
 	pDeviceConnected = false;
 	
 	//Setup port
-    serialPort->setBaudRate(1000000); //1MBaud
-	serialPort->setFlowControl(QSerialPort::NoFlowControl);
-	serialPort->setParity(QSerialPort::NoParity);
-	serialPort->setDataBits(QSerialPort::Data8);
-	serialPort->setStopBits(QSerialPort::OneStop);
+    pSerialPort->setBaudRate(1000000); //1MBaud
+    pSerialPort->setFlowControl(QSerialPort::NoFlowControl);
+    pSerialPort->setParity(QSerialPort::NoParity);
+    pSerialPort->setDataBits(QSerialPort::Data8);
+    pSerialPort->setStopBits(QSerialPort::OneStop);
 	
     //Initialize port
 	changeSerialPort(portName);
 
 	//Setup slots
-    connect(serialPort, &QSerialPort::readyRead, this, &Serial::readSerialPort);
-    connect(serialPort, &QSerialPort::bytesWritten, this, &Serial::writtenSerialPort);
-    connect(serialPort, &QSerialPort::dataTerminalReadyChanged, this, &Serial::reportDsr);
-    connect(serialPort, &QSerialPort::aboutToClose, this, &Serial::closeSerialPort);
+    connect(pSerialPort, &QSerialPort::readyRead, this, &SerialManager::readSerialPort);
+    connect(pSerialPort, &QSerialPort::bytesWritten, this, &SerialManager::writtenSerialPort);
+    connect(pSerialPort, &QSerialPort::dataTerminalReadyChanged, this, &SerialManager::reportDsr);
+    connect(pSerialPort, &QSerialPort::aboutToClose, this, &SerialManager::closeSerialPort);
 
 //	connect(serialPort, SIGNAL(readyRead()), this, SLOT(readSerialPort()));
 //	connect(serialPort, SIGNAL(bytesWritten(qint64)), this, SLOT(writtenSerialPort(qint64)));
@@ -41,24 +41,24 @@ Serial::Serial(QString portName, QObject *parent) : QObject(parent), pFirmwareVe
 	}
 
     //Every x period, request the firmware status, i.e. number of bytes read
-    serialTimer = new QTimer();
-	serialTimer->setTimerType(Qt::PreciseTimer);
-    connect(serialTimer, &QTimer::timeout, this, &Serial::requestBytesRead);
+    pSerialTimer = new QTimer();
+    pSerialTimer->setTimerType(Qt::PreciseTimer);
+    connect(pSerialTimer, &QTimer::timeout, this, &SerialManager::requestBytesRead);
 //	connect(serialTimer, SIGNAL(timeout()), this, SLOT(requestBytesRead()));
-	serialTimer->start(1000); //Request every second
+    pSerialTimer->start(1000); //Request every second
 
     //Every x period, request the latest lux value from the sensor
-	luxTimer = new QTimer();
-	luxTimer->setTimerType(Qt::PreciseTimer);
-    connect(luxTimer, &QTimer::timeout, this, &Serial::requestLux);
+    pLuxTimer = new QTimer();
+    pLuxTimer->setTimerType(Qt::PreciseTimer);
+    connect(pLuxTimer, &QTimer::timeout, this, &SerialManager::requestLux);
     //connect(luxTimer, SIGNAL(timeout()), this, SLOT(requestLux()));
 	//luxTimer->start(2000); //Request every 2 seconds
 	
     //Every 50 ms, check if there is anything to read
-	readTimer = new QTimer();
-	readTimer->setTimerType(Qt::PreciseTimer);
-	connect(readTimer, &QTimer::timeout, this, [=]() {serialPort->waitForReadyRead(0); });
-	readTimer->start(50);
+    pReadTimer = new QTimer();
+    pReadTimer->setTimerType(Qt::PreciseTimer);
+    connect(pReadTimer, &QTimer::timeout, this, [=]() {pSerialPort->waitForReadyRead(0); });
+    pReadTimer->start(50);
 
     //Request firmware
 	requestFirmwareVersion();
@@ -68,19 +68,19 @@ Serial::Serial(QString portName, QObject *parent) : QObject(parent), pFirmwareVe
 }
 
 //Destructor
-Serial::~Serial()
+SerialManager::~SerialManager()
 {
-	serialPort->close();
+    pSerialPort->close();
 }
 
 //Set firmware version
-void Serial::setFirmwareVersion(QString firmware)
+void SerialManager::setFirmwareVersion(QString firmware)
 {
     pFirmwareVersion = firmware;
 }
 
 //Write an image to the serial port
-void Serial::writeLEDImage(QImage led)
+void SerialManager::writeLEDImage(QImage led)
 {
 	QByteArray dataArray;
 
@@ -108,7 +108,7 @@ void Serial::writeLEDImage(QImage led)
 }
 
 //Request bytes read by Arduino
-void Serial::requestBytesRead()
+void SerialManager::requestBytesRead()
 {
 	if (pDeviceConnected)
 	{
@@ -131,7 +131,7 @@ void Serial::requestBytesRead()
 }
 
 //Request firmware version
-void Serial::requestFirmwareVersion()
+void SerialManager::requestFirmwareVersion()
 {
 	QByteArray dataArray;
     dataArray.append(static_cast<BYTE>(FirmwareCommand));
@@ -139,7 +139,7 @@ void Serial::requestFirmwareVersion()
 }
 
 //Request ambient light conditions
-void Serial::requestLux()
+void SerialManager::requestLux()
 {
 	QByteArray dataArray;
     dataArray.append(static_cast<BYTE>(LuxCommand));
@@ -147,28 +147,28 @@ void Serial::requestLux()
 }
 
 //Write to serial port
-void Serial::writeToSerialPort(QByteArray data)
+void SerialManager::writeToSerialPort(QByteArray data)
 {
-    long long bytesWritten = serialPort->write(data);
+    long long bytesWritten = pSerialPort->write(data);
     Q_ASSERT(bytesWritten == data.length());
 }
 
 //Change port
-void Serial::changeSerialPort(QString portName)
+void SerialManager::changeSerialPort(QString portName)
 {
     //Check if it is actually different to the current one
-    if (portName == pPortName && serialPort->isOpen())
+    if (portName == pPortName && pSerialPort->isOpen())
         return;
 
 	//Close serial port
-	if (serialPort->isOpen())
-		serialPort->close();
+    if (pSerialPort->isOpen())
+        pSerialPort->close();
 
 	//Change port name
-	serialPort->setPortName(portName);
+    pSerialPort->setPortName(portName);
 
 	//Re-open the port
-	if (!serialPort->open(QIODevice::ReadWrite))
+    if (!pSerialPort->open(QIODevice::ReadWrite))
 		qDebug() << "Could not open port '" << portName << "'";
 
     setFirmwareVersion("Not connected");
@@ -177,12 +177,12 @@ void Serial::changeSerialPort(QString portName)
 }
 
 //Bytes are ready to be read from serial port
-void Serial::readSerialPort()
+void SerialManager::readSerialPort()
 {
-	if (!serialPort->bytesAvailable())
+    if (!pSerialPort->bytesAvailable())
 		return;
 
-	QByteArray data = serialPort->readAll();
+    QByteArray data = pSerialPort->readAll();
     pReadBuffer.append(data);
 
 	if (!data.isEmpty())
@@ -258,7 +258,7 @@ void Serial::readSerialPort()
 			}
 #else
 			//Check CRC16
-            quint16 calculatedCRC16 = qChecksum(pReadBuffer.constData(), SERIAL_HEADER_OVERHEAD + length);
+            quint16 calculatedCRC16 = qChecksum(QByteArrayView(pReadBuffer.constData(), SERIAL_HEADER_OVERHEAD + length));
 
 			if (crc16 != calculatedCRC16)
 			{
@@ -303,7 +303,7 @@ void Serial::readSerialPort()
 }
 
 //Calculate the parity of 8 bytes
-BYTE Serial::calculateParity8(const char* data, qint32 dataLength)
+BYTE SerialManager::calculateParity8(const char* data, qint32 dataLength)
 {
 	//Calculate an 8 bit parity on a byte array
 	if (dataLength <= 0)
@@ -323,18 +323,18 @@ BYTE Serial::calculateParity8(const char* data, qint32 dataLength)
 //===== SIGNALS FROM SERIAL PORT =====
 
 //Written data to serial port
-void Serial::writtenSerialPort(int bytes)
+void SerialManager::writtenSerialPort(int bytes)
 {
 	//Amount of data has been written to serial port
 	emit serialDataWritten(bytes);
 }
 
-void Serial::closeSerialPort()
+void SerialManager::closeSerialPort()
 {
 	emit serialPortClosed();
 }
 
-void Serial::reportDsr(bool state)
+void SerialManager::reportDsr(bool state)
 {
 	//DSR has changed
 	emit dsrChanged(state);

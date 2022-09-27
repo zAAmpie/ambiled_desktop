@@ -110,10 +110,10 @@ private:
     BYTE calculateParity8(const char* data, int dataLength);
 
     //Local class pointers
-    std::unique_ptr<QSerialPort> serialPort;
-    std::unique_ptr<QTimer> serialTimer;
-    std::unique_ptr<QTimer> readTimer;
-    std::unique_ptr<QTimer> luxTimer;
+    QSerialPort *pSerialPort;
+    QTimer *pSerialTimer;
+    QTimer *pReadTimer;
+    QTimer *pLuxTimer;
 
     //Local class variables
     QString pPortName;
