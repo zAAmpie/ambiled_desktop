@@ -11,6 +11,7 @@ LowPassFilterProcess::LowPassFilterProcess(int filterCutoff, int historyMax) : I
     pFilterCutoff = qMax(0, filterCutoff);
     pHistoryMax = qMax(1, historyMax);
 
+    //Start delta timer for the first run
     pDeltaTimer->start();
 }
 
