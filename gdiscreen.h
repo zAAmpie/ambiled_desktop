@@ -1,6 +1,11 @@
 #pragma once
 
 #include "screen.h"
+class GDIScreen;
+
+#ifdef Q_OS_WIN
+#include <windef.h>
+#include <wingdi.h>
 
 class GDIScreen : public Screen
 {
@@ -9,10 +14,19 @@ public:
     ~GDIScreen();
 
     //Get methods
-    CaptureMode type() const {return Screen::GDIMode;}
+    CaptureMode type() const override {return Screen::GDIMode;}
 
     //Main function to start capturing the screen
-    QImage capture();
+    QImage capture() override;
+private:
+    //Creates a bitmap that is sized to the current screen
+    void createBitmap();
+
+    HWND pDesktopWnd;
+    HDC pDesktopDC;
+    HDC pCaptureDC;
+    HBITMAP pCaptureBitmap;
+    BITMAPINFO pInfo;
 };
 
-
+#endif

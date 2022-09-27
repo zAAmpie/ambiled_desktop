@@ -18,7 +18,7 @@ public:
 
     //Main function to start capturing the screen
     virtual QImage capture();
-private:
+protected:
     ScreenSize pScreenSize;
 };
 

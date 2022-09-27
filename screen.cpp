@@ -1,12 +1,13 @@
 #include "screen.h"
 
+//Constructor
 Screen::Screen() : pScreenSize(ScreenSize())
 {
-    //Default constructor
+
 }
 
-
+//Destructor
 Screen::~Screen()
 {
-    //Default destructor
+
 }
