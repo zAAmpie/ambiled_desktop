@@ -4,12 +4,14 @@
 #include <QMutex>
 #include "screencapture.h"
 
+#define DEFAULT_FRAMERATE 60
+
 class ScreenManager : public QObject
 {
     /* Manages screen captures according to a specified rate and returns a specified size */
     Q_OBJECT
 public:
-    explicit ScreenManager(int frameRate, QObject *parent = nullptr);
+    ScreenManager(int frameRate = DEFAULT_FRAMERATE, QObject *parent = nullptr);
     ~ScreenManager();
 
     //Current capture modes (thread-safe)
@@ -35,11 +37,14 @@ signals:
     void failed(QString message);
 
 private:
-    //Private slot that is called when capturing has been completed
-    void captureCompleted(QImage processedImage);
+    //Frame timer slot that is called n times per second
+    void frameTimerElapsed();
+
+    //Start timer based on frame rate
+    void startFrameTimer();
 
     std::unique_ptr<ScreenCapture> pScreen;
-    std::unique_ptr<QTimer> pFrameTimer;
+    QTimer *pFrameTimer;
 
     QMutex pMutex;
     int pFrameRate;

@@ -61,7 +61,7 @@ signals:
 
     //===== PROCESS MANAGER SIGNALS FOR SLOTS =====
     //Process the input screen and provide an LED output
-    void processManagerStartProcess(QImage screen);
+    void processManagerStartProcess(QImage screen, StripSizes sizes);
     //TODO: Add full configuration of process manager
 
     //===== SERIAL MANAGER SIGNALS FOR SLOTS =====
