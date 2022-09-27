@@ -11,7 +11,7 @@ ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, ImageSize outputSize)
     if (pType != ProcessType::LinearScale && pType != ProcessType::CubicScale && pType != ProcessType::SampleScale)
         pType = ProcessType::LinearScale;
 
-#ifdef Q_OS_WINDOWS
+#ifdef Q_OS_WIN
     //Create WIC factory
     HRESULT hr = CoCreateInstance(
         CLSID_WICImagingFactory,
@@ -26,7 +26,7 @@ ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, ImageSize outputSize)
 //Destructor
 ScaleProcess::~ScaleProcess()
 {
-#ifdef Q_OS_WINDOWS
+#ifdef Q_OS_WIN
     if (pWICFactory)
         pWICFactory->Release();
     if (pWICScaler)
@@ -35,7 +35,7 @@ ScaleProcess::~ScaleProcess()
 }
 
 //Scales image using the selected scaler type
-#ifdef Q_OS_WINDOWS
+#ifdef Q_OS_WIN
 //For Windows, we'll use the WIC library to do the scaling
 QImage ScaleProcess::process(QImage inputImage)
 {

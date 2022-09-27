@@ -22,6 +22,9 @@ private:
     //Creates a bitmap that is sized to the current screen
     void createBitmap();
 
+    //Calculate window size
+    ScreenSize getWindowSize(HWND &window);
+
     HWND pDesktopWnd;
     HDC pDesktopDC;
     HDC pCaptureDC;

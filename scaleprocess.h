@@ -3,7 +3,7 @@
 #include "imageprocess.h"
 #include "types.h"
 
-#ifdef Q_OS_WINDOWS
+#ifdef Q_OS_WIN
 #include <wincodec.h>
 #endif
 
@@ -22,7 +22,7 @@ private:
     ProcessType pType;
     ImageSize pOutputSize;
 
-#ifdef Q_OS_WINDOWS
+#ifdef Q_OS_WIN
     IWICImagingFactory *pWICFactory;
     IWICBitmapScaler *pWICScaler;
 #endif

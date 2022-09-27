@@ -50,10 +50,7 @@ QImage GDIScreen::capture()
 void GDIScreen::createBitmap()
 {
     //Get current desktop size
-    LPRECT lpRect = nullptr;
-    bool res = GetWindowRect(pDesktopWnd, lpRect);
-    Q_ASSERT(res);
-    ScreenSize newSize = lpRect ? ScreenSize(qAbs(lpRect->top - lpRect->bottom), qAbs(lpRect->left - lpRect->right)) : ScreenSize();
+    ScreenSize newSize = getWindowSize(pDesktopWnd);
     Q_ASSERT(newSize.isSet());
 
     if (newSize == pScreenSize && pCaptureBitmap)
@@ -72,6 +69,18 @@ void GDIScreen::createBitmap()
     pInfo.bmiHeader.biHeight = pScreenSize.height;
     pInfo.bmiHeader.biPlanes = 1;
     pInfo.bmiHeader.biBitCount = 32;
+}
+
+//Calculate window size
+ScreenSize GDIScreen::getWindowSize(HWND &window)
+{
+    //Get current window size
+    RECT rect;
+    bool res = GetWindowRect(window, &rect);
+    Q_ASSERT(res);
+    ScreenSize newSize = ScreenSize(qAbs(rect.bottom - rect.top), qAbs(rect.right - rect.left));
+
+    return newSize;
 }
 
 #endif
