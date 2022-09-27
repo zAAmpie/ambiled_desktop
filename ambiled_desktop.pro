@@ -13,11 +13,11 @@ SOURCES += \
     blackbarprocess.cpp \
     blockstriptransform.cpp \
     blocktransform.cpp \
-    dx11screen.cpp \
-    dx9screen.cpp \
-    dxgiscreen.cpp \
+    dx11screencapture.cpp \
+    dx9screencapture.cpp \
+    dxgiscreencapture.cpp \
     execthread.cpp \
-    gdiscreen.cpp \
+    gdiscreencapture.cpp \
     imageprocess.cpp \
     imagetransform.cpp \
     leds.cpp \
@@ -26,24 +26,24 @@ SOURCES += \
     pixmaputils.cpp \
     processmanager.cpp \
     scaleprocess.cpp \
-    screen.cpp \
+    screencapture.cpp \
     screenmanager.cpp \
     serialmanager.cpp \
     simpletransform.cpp \
     striptransform.cpp \
     util.cpp \
-    x11screen.cpp
+    x11screencapture.cpp
 
 HEADERS += \
     ambiled.h \
     blackbarprocess.h \
     blockstriptransform.h \
     blocktransform.h \
-    dx11screen.h \
-    dx9screen.h \
-    dxgiscreen.h \
+    dx11screencapture.h \
+    dx9screencapture.h \
+    dxgiscreencapture.h \
     execthread.h \
-    gdiscreen.h \
+    gdiscreencapture.h \
     imageprocess.h \
     imagetransform.h \
     leds.h \
@@ -51,7 +51,7 @@ HEADERS += \
     pixmaputils.h \
     processmanager.h \
     scaleprocess.h \
-    screen.h \
+    screencapture.h \
     screenmanager.h \
     serialmanager.h \
     simpletransform.h \
@@ -59,7 +59,7 @@ HEADERS += \
     types.h \
     util.h \
     version.h \
-    x11screen.h
+    x11screencapture.h
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

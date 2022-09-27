@@ -1,10 +1,10 @@
-#include "gdiscreen.h"
+#include "gdiscreencapture.h"
 #ifdef Q_OS_WIN
 #include <winuser.h>
 #include "util.h"
 
 //Constructor
-GDIScreen::GDIScreen() : Screen()
+GDIScreenCapture::GDIScreenCapture() : ScreenCapture()
 {
     //Construct all GDI variables
     pDesktopWnd = GetDesktopWindow();
@@ -16,7 +16,7 @@ GDIScreen::GDIScreen() : Screen()
 }
 
 //Destructor
-GDIScreen::~GDIScreen()
+GDIScreenCapture::~GDIScreenCapture()
 {
     ReleaseDC(pDesktopWnd, pDesktopDC);
     DeleteDC(pCaptureDC);
@@ -24,7 +24,7 @@ GDIScreen::~GDIScreen()
 }
 
 //Main function to start capturing the screen
-QImage GDIScreen::capture()
+QImage GDIScreenCapture::capture()
 {
     //Create or use existing bitmap (in case screen size has changed)
     createBitmap();
@@ -47,7 +47,7 @@ QImage GDIScreen::capture()
 }
 
 //Creates a bitmap that is sized to the current screen
-void GDIScreen::createBitmap()
+void GDIScreenCapture::createBitmap()
 {
     //Get current desktop size
     ScreenSize newSize = getWindowSize(pDesktopWnd);

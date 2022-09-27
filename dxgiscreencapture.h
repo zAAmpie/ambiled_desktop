@@ -1,20 +1,20 @@
 #pragma once
 
-#include "screen.h"
-class DXGIScreen;
+#include "screencapture.h"
+class DXGIScreenCapture;
 
 #ifdef Q_OS_WIN
 #include <d3d11.h>
 #include <dxgi1_2.h>
 
-class DXGIScreen : public Screen
+class DXGIScreenCapture : public ScreenCapture
 {
 public:
-    DXGIScreen();
-    ~DXGIScreen();
+    DXGIScreenCapture();
+    ~DXGIScreenCapture();
 
     //Get methods
-    CaptureMode type() const override {return Screen::DXGIMode;}
+    CaptureMode type() const override {return ScreenCapture::DXGIMode;}
 
     //Main function to start capturing the screen
     QImage capture() override;

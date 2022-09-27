@@ -6,14 +6,14 @@
 #include <windef.h>
 #endif
 
-class Screen
+class ScreenCapture
 {
     /* Base class for all screen capture types */
 public:
     enum CaptureMode {GDIMode, DirectX9Mode, DirectX11Mode, DXGIMode, X11Mode};
 
-    Screen();
-    ~Screen();
+    ScreenCapture();
+    ~ScreenCapture();
 
     //Get methods
     virtual CaptureMode type() const;

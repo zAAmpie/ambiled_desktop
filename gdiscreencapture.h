@@ -1,20 +1,20 @@
 #pragma once
 
-#include "screen.h"
-class GDIScreen;
+#include "screencapture.h"
+class GDIScreenCapture;
 
 #ifdef Q_OS_WIN
 #include <windef.h>
 #include <wingdi.h>
 
-class GDIScreen : public Screen
+class GDIScreenCapture : public ScreenCapture
 {
 public:
-    GDIScreen();
-    ~GDIScreen();
+    GDIScreenCapture();
+    ~GDIScreenCapture();
 
     //Get methods
-    CaptureMode type() const override {return Screen::GDIMode;}
+    CaptureMode type() const override {return ScreenCapture::GDIMode;}
 
     //Main function to start capturing the screen
     QImage capture() override;

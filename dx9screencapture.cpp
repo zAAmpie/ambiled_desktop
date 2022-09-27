@@ -3,7 +3,7 @@
 
 #ifdef Q_OS_WIN
 //Constructor
-DX9Screen::DX9Screen() : Screen()
+DX9ScreenCapture::DX9ScreenCapture() : ScreenCapture()
 {
     pDesktopWnd = GetDesktopWindow();
     pScreenSize = getWindowSize(pDesktopWnd);
@@ -13,7 +13,7 @@ DX9Screen::DX9Screen() : Screen()
 }
 
 //Destructor
-DX9Screen::~DX9Screen()
+DX9ScreenCapture::~DX9ScreenCapture()
 {
     pSurface->Release();
     pDevice->Release();
@@ -21,7 +21,7 @@ DX9Screen::~DX9Screen()
 }
 
 //Main function to start capturing the screen
-QImage DX9Screen::capture()
+QImage DX9ScreenCapture::capture()
 {
     //Check if everything is still good, otherwise recreate
     createVariables();
@@ -49,7 +49,7 @@ QImage DX9Screen::capture()
 }
 
 //Create variables (typically after screen change)
-void DX9Screen::createVariables()
+void DX9ScreenCapture::createVariables()
 {
     //Check if screen size has changed
     ScreenSize newSize = getWindowSize(pDesktopWnd);

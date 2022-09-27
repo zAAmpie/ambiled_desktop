@@ -1,17 +1,17 @@
-#include "screen.h"
+#include "screencapture.h"
 
 #ifdef Q_OS_WIN
 #include <winuser.h>
 #endif
 
 //Constructor
-Screen::Screen() : pScreenSize(ScreenSize())
+ScreenCapture::ScreenCapture() : pScreenSize(ScreenSize())
 {
 
 }
 
 //Destructor
-Screen::~Screen()
+ScreenCapture::~ScreenCapture()
 {
 
 }
@@ -19,7 +19,7 @@ Screen::~Screen()
 
 #ifdef Q_OS_WIN
 //Calculate window size
-ScreenSize Screen::getWindowSize(HWND &window)
+ScreenSize ScreenCapture::getWindowSize(HWND &window)
 {
     //Get current window size
     RECT rect;

@@ -1,20 +1,20 @@
 #pragma once
 
-#include "screen.h"
-class DX11Screen;
+#include "screencapture.h"
+class DX11ScreenCapture;
 
 #ifdef Q_OS_WIN
 #include <windef.h>
 #include <d3d11.h>
 
-class DX11Screen : public Screen
+class DX11ScreenCapture : public ScreenCapture
 {
 public:
-    DX11Screen();
-    ~DX11Screen();
+    DX11ScreenCapture();
+    ~DX11ScreenCapture();
 
     //Get methods
-    CaptureMode type() const override {return Screen::DirectX11Mode;}
+    CaptureMode type() const override {return ScreenCapture::DirectX11Mode;}
 
     //Main function to start capturing the screen
     QImage capture() override;

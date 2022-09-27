@@ -2,7 +2,7 @@
 
 #ifdef Q_OS_WIN
 //Constructor
-DXGIScreen::DXGIScreen() : Screen()
+DXGIScreenCapture::DXGIScreenCapture() : ScreenCapture()
 {
     pD3DDevice = nullptr;
     pD3DDeviceContext = nullptr;
@@ -12,7 +12,7 @@ DXGIScreen::DXGIScreen() : Screen()
 }
 
 //Destructor
-DXGIScreen::~DXGIScreen()
+DXGIScreenCapture::~DXGIScreenCapture()
 {
     if (pDeskDupl)
         pDeskDupl->Release();
@@ -23,7 +23,7 @@ DXGIScreen::~DXGIScreen()
 }
 
 //Main function to start capturing the screen
-QImage DXGIScreen::capture()
+QImage DXGIScreenCapture::capture()
 {
     createVariables();
 
@@ -99,7 +99,7 @@ QImage DXGIScreen::capture()
 }
 
 //Create variables (typically after screen change)
-void DXGIScreen::createVariables()
+void DXGIScreenCapture::createVariables()
 {
     if (pD3DDevice && pD3DDeviceContext && pDeskDupl)
         //Everything is still correct

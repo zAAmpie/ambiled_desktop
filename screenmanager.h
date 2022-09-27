@@ -2,7 +2,7 @@
 
 #include <QObject>
 #include <QMutex>
-#include "screen.h"
+#include "screencapture.h"
 
 class ScreenManager : public QObject
 {
@@ -13,8 +13,8 @@ public:
     ~ScreenManager();
 
     //Current capture modes (thread-safe)
-    void setCaptureMode(Screen::CaptureMode mode);
-    Screen::CaptureMode captureMode() const {return pScreen->type();}
+    void setCaptureMode(ScreenCapture::CaptureMode mode);
+    ScreenCapture::CaptureMode captureMode() const {return pScreen->type();}
 
     //Frame rate (thread-safe)
     void setFrameRate(int rate);
@@ -38,7 +38,7 @@ private:
     //Private slot that is called when capturing has been completed
     void captureCompleted(QImage processedImage);
 
-    std::unique_ptr<Screen> pScreen;
+    std::unique_ptr<ScreenCapture> pScreen;
     std::unique_ptr<QTimer> pFrameTimer;
 
     QMutex pMutex;

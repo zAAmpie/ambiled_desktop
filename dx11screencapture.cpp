@@ -1,8 +1,8 @@
-#include "dx11screen.h"
+#include "dx11screencapture.h"
 
 #ifdef Q_OS_WIN
 //Constructor
-DX11Screen::DX11Screen() : Screen()
+DX11ScreenCapture::DX11ScreenCapture() : ScreenCapture()
 {
     pDesktopWnd = GetDesktopWindow();
     pScreenSize = getWindowSize(pDesktopWnd);
@@ -15,7 +15,7 @@ DX11Screen::DX11Screen() : Screen()
 }
 
 //Destructor
-DX11Screen::~DX11Screen()
+DX11ScreenCapture::~DX11ScreenCapture()
 {
     //Clean up all variables
     pBackBuffer->Release();
@@ -25,7 +25,7 @@ DX11Screen::~DX11Screen()
 }
 
 //Main function to start capturing the screen
-QImage DX11Screen::capture()
+QImage DX11ScreenCapture::capture()
 {
     //Check if everything is up and running, otherwise recreate
     createVariables();
@@ -63,7 +63,7 @@ QImage DX11Screen::capture()
 }
 
 //Create all the variables (after screen size change)
-void DX11Screen::createVariables()
+void DX11ScreenCapture::createVariables()
 {
     ScreenSize newSize = getWindowSize(pDesktopWnd);
     if (newSize == pScreenSize && pSwapChain && pBackBuffer)
@@ -74,7 +74,7 @@ void DX11Screen::createVariables()
 }
 
 //Create the swap chain
-void DX11Screen::createSwapChain()
+void DX11ScreenCapture::createSwapChain()
 {
     //Create swap chain descriptor
     ZeroMemory(&pScDesc, sizeof(DXGI_SWAP_CHAIN_DESC));
@@ -101,7 +101,7 @@ void DX11Screen::createSwapChain()
 }
 
 //Create the textures
-void DX11Screen::createTexture()
+void DX11ScreenCapture::createTexture()
 {
     Q_ASSERT(pSwapChain);
     if (!pSwapChain)
