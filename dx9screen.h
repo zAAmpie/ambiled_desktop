@@ -21,10 +21,6 @@ public:
 private:
     //Create variables (typically after screen change)
     void createVariables();
-    //Create the swap chain
-    void createSwapChain();
-    //Create the texture
-    void createTexture();
 
     HWND pDesktopWnd;
 

@@ -15,10 +15,8 @@ struct ScreenSize
     //Zero values indicate an unset size
     bool isSet() const {return height > 0 || width > 0;}
 
-    bool operator==(ScreenSize &rhs)
-    {
-        return height == rhs.height && width == rhs.width;
-    }
+    bool operator==(ScreenSize &rhs) {return height == rhs.height && width == rhs.width;}
+    bool operator!=(ScreenSize &rhs) {return !operator==(rhs);}
 };
 using ImageSize = ScreenSize;
 
