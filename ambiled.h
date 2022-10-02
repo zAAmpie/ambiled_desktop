@@ -145,36 +145,36 @@ private:
     void setupGUI();
 
     //Pointers to bigger objects
-    std::unique_ptr<SerialManager> pSerialManager;
-    std::unique_ptr<ScreenManager> pScreenManager;
-    std::unique_ptr<ProcessManager> pProcessManager;
-    std::unique_ptr<LEDS> pLeds;
-    std::unique_ptr<ExecThread> pCaptureThread;
+    SerialManager *pSerialManager;
+    ScreenManager *pScreenManager;
+    ProcessManager *pProcessManager;
+    LEDS *pLeds;
+    ExecThread *pCaptureThread;
 
     Ui::AmbiLEDClass ui;
 
     //UI variables
-    std::unique_ptr<QAction> pQuitAction;
-    std::unique_ptr<QAction> pConfigureAction;
-    std::unique_ptr<QAction> pSuspendAction;
+    QAction *pQuitAction;
+    QAction *pConfigureAction;
+    QAction *pSuspendAction;
 
     QPixmap pConnectedPixmap;
     QPixmap pDisconnectedPixmap;
 
-    std::unique_ptr<QSystemTrayIcon> pTray;
-    std::unique_ptr<QMenu> pTrayMenu;
+    QSystemTrayIcon *pTray;
+    QMenu *pTrayMenu;
 
     //Timers
-    std::unique_ptr<QElapsedTimer> pElapsedCaptureTimer;
-    std::unique_ptr<QElapsedTimer> pElapsedSerialTimer;
-    std::unique_ptr<QTimer> pUiUpdateTimer;
+    QElapsedTimer *pElapsedCaptureTimer;
+    QElapsedTimer *pElapsedSerialTimer;
+    QTimer *pUiUpdateTimer;
 
     //Local variables
     QQueue<qint64> pFrameAverageQueue;
     QQueue<qint64> pSerialAverageQueue;
 
     QMap<AmbiLEDSettings, QString> pSettingsMap;
-    std::unique_ptr<QSettings> pSettings;
+    QSettings *pSettings;
 
     int pReadCounter;
     int pFrameCounter;
