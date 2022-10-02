@@ -40,71 +40,49 @@ public:
 
     //Get the serial port name
     QString getPortName() const {return pPortName;}
-
     //Get the firmware version
     QString getFirmwareVersion() const {return pFirmwareVersion;}
-
     //Get the latest lux value
     int getLux() const {return pLux;}
-
     //Check if the device is connected
 	bool connected() { return pDeviceConnected; }
 
     //Set firmware version (thread-safe)
     void setFirmwareVersion(QString firmware);
+    //Change port (thread-safe)
+    void changeSerialPort(QString portName);
 	
     //Write an image to the serial port - slot
 	void writeLEDImage(QImage led);
-
-    //Change port (thread-safe)
-	void changeSerialPort(QString portName);
-
 signals:
     //Data read from serial port
     void serialDataRead(QByteArray data);
-
     //Amount of data written to serial port
     void serialDataWritten(int bytes);
-
     //Serial port can transmit more data
     void readyForTransmit();
-
     //DSR changed
     void dsrChanged(bool state);
-
     //Serial port has been closed
     void serialPortClosed();
-
     //Device is connected or not
     void deviceStatusChanged(bool active);
-
     //Lux value has changed
     void luxValueChanged();
 
 private:
+    //===== SLOTS FOR SERIALPORT =====
+    //Bytes are ready to be read from serial port
+    void serialPortReadyRead();
+
     //Write to serial port
     void writeToSerialPort(QByteArray data);
-
-	//Bytes have been written to the serial port
-    void writtenSerialPort(int bytes);
-	
 	//Request bytes read by Arduino
 	void requestBytesRead();
-
 	//Request firmware version
 	void requestFirmwareVersion();
-
 	//Request ambient light conditions
 	void requestLux();
-
-	//Bytes are ready to be read from serial port
-	void readSerialPort();
-
-	//DSR changed on the serial port
-	void reportDsr(bool);
-
-	//Close the serial port
-	void closeSerialPort();
 
     //Calculate the parity of 8 bytes
     BYTE calculateParity8(const char* data, int dataLength);

@@ -9,7 +9,7 @@
 //Constructor
 SerialManager::SerialManager(QString portName, QObject *parent) : QObject(parent), pFirmwareVersion("Not connected"), pUpdatesMissed(0)
 {
-    //Create the serial port
+    //Create the serial port in the same thread
     pSerialPort = new QSerialPort(portName);
     pPortName = portName;
 	pDeviceConnected = false;
@@ -25,15 +25,10 @@ SerialManager::SerialManager(QString portName, QObject *parent) : QObject(parent
 	changeSerialPort(portName);
 
 	//Setup slots
-    connect(pSerialPort, &QSerialPort::readyRead, this, &SerialManager::readSerialPort);
-    connect(pSerialPort, &QSerialPort::bytesWritten, this, &SerialManager::writtenSerialPort);
-    connect(pSerialPort, &QSerialPort::dataTerminalReadyChanged, this, &SerialManager::reportDsr);
-    connect(pSerialPort, &QSerialPort::aboutToClose, this, &SerialManager::closeSerialPort);
-
-//	connect(serialPort, SIGNAL(readyRead()), this, SLOT(readSerialPort()));
-//	connect(serialPort, SIGNAL(bytesWritten(qint64)), this, SLOT(writtenSerialPort(qint64)));
-//	connect(serialPort, SIGNAL(dsrChanged(bool)), this, SLOT(reportDsr(bool)));
-//	connect(serialPort, SIGNAL(aboutToClose()), this, SLOT(closeSerialPort()));
+    connect(pSerialPort, &QSerialPort::readyRead, this, &SerialManager::serialPortReadyRead);
+    connect(pSerialPort, &QSerialPort::bytesWritten, this, &SerialManager::serialDataWritten); //signal to signal
+    connect(pSerialPort, &QSerialPort::dataTerminalReadyChanged, this, &SerialManager::dsrChanged); //signal to signal
+    connect(pSerialPort, &QSerialPort::aboutToClose, this, &SerialManager::serialPortClosed); //signal to signal
 	
 	if (portName.startsWith("COM"))
 	{
@@ -44,14 +39,12 @@ SerialManager::SerialManager(QString portName, QObject *parent) : QObject(parent
     pSerialTimer = new QTimer();
     pSerialTimer->setTimerType(Qt::PreciseTimer);
     connect(pSerialTimer, &QTimer::timeout, this, &SerialManager::requestBytesRead);
-//	connect(serialTimer, SIGNAL(timeout()), this, SLOT(requestBytesRead()));
     pSerialTimer->start(1000); //Request every second
 
     //Every x period, request the latest lux value from the sensor
     pLuxTimer = new QTimer();
     pLuxTimer->setTimerType(Qt::PreciseTimer);
     connect(pLuxTimer, &QTimer::timeout, this, &SerialManager::requestLux);
-    //connect(luxTimer, SIGNAL(timeout()), this, SLOT(requestLux()));
 	//luxTimer->start(2000); //Request every 2 seconds
 	
     //Every 50 ms, check if there is anything to read
@@ -76,7 +69,9 @@ SerialManager::~SerialManager()
 //Set firmware version
 void SerialManager::setFirmwareVersion(QString firmware)
 {
+    pMutex.lock();
     pFirmwareVersion = firmware;
+    pMutex.unlock();
 }
 
 //Write an image to the serial port
@@ -160,6 +155,8 @@ void SerialManager::changeSerialPort(QString portName)
     if (portName == pPortName && pSerialPort->isOpen())
         return;
 
+    pMutex.lock();
+
 	//Close serial port
     if (pSerialPort->isOpen())
         pSerialPort->close();
@@ -171,13 +168,15 @@ void SerialManager::changeSerialPort(QString portName)
     if (!pSerialPort->open(QIODevice::ReadWrite))
 		qDebug() << "Could not open port '" << portName << "'";
 
+    pMutex.unlock();
+
     setFirmwareVersion("Not connected");
 	pUpdatesMissed = 0;
 	requestBytesRead();
 }
 
 //Bytes are ready to be read from serial port
-void SerialManager::readSerialPort()
+void SerialManager::serialPortReadyRead()
 {
     if (!pSerialPort->bytesAvailable())
 		return;
@@ -318,24 +317,4 @@ BYTE SerialManager::calculateParity8(const char* data, qint32 dataLength)
 		parity ^= data[i];
 	}
 	return parity;
-}
-
-//===== SIGNALS FROM SERIAL PORT =====
-
-//Written data to serial port
-void SerialManager::writtenSerialPort(int bytes)
-{
-	//Amount of data has been written to serial port
-	emit serialDataWritten(bytes);
-}
-
-void SerialManager::closeSerialPort()
-{
-	emit serialPortClosed();
-}
-
-void SerialManager::reportDsr(bool state)
-{
-	//DSR has changed
-	emit dsrChanged(state);
 }
