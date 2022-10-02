@@ -99,13 +99,24 @@ QImage LEDS::transformToLED(const ImageStrips& lines)
 int LEDS::transformLuxToBrightness(int lux)
 {
     //For now, just clamp these to some minimum/maximum value
-    return clamp_byte(INT_TO_BYTE(lux), 5u, 255u);
+    return std::clamp(lux, 5, 255);
 }
 
 //Set new LED positions
 void LEDS::setPositions(LEDPositions newPositions)
 {
     pPositions = newPositions;
+}
+
+//Get the LED strip sizes
+StripSizes LEDS::getStripSizes() const
+{
+    StripSizes sizes;
+    sizes.top = pPositions.t;
+    sizes.bottom = pPositions.getBottomCount();
+    sizes.left = pPositions.l;
+    sizes.right = pPositions.r;
+    return sizes;
 }
 
 //Set LED temperature adjustment

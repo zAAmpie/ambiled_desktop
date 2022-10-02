@@ -1,5 +1,6 @@
 #pragma once
 
+#include "types.h"
 #include <QImage>
 
 /* Header file containing everything to do with the LEDs, i.e.
@@ -115,6 +116,8 @@ public:
 
     //Get the LED positions if needed - shouldn't really be required
     LEDPositions getPositions() const {return pPositions;}
+    //Get the LED strip sizes
+    StripSizes getStripSizes() const;
 
     //Get current colour temperature setting
     int getColourTemperature() const {return pColourTemperature;}
@@ -134,7 +137,7 @@ public:
 private:
     const int LEDStripExcess = 10;
     //Transform the main representation and return a brightness adjusted version
-    QImage transformBrightness(QImage inputImage, double brightness, ColourTemperature temperature);
+    QImage transformBrightness(QImage inputImage, double brightness, int temperature);
 
     //Transform image representation to LED representation
     QImage transformToLED(const ImageStrips& lines);
