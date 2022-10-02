@@ -29,6 +29,11 @@ public:
     void setEnabled(bool state);
     void enable() {setEnabled(true);}
     void disable() {setEnabled(false);}
+
+    //Debug mode
+    void setTestPatternGeneration(bool state);
+    void enableTestPatternGeneration() {setTestPatternGeneration(true);}
+    void disableTestPatternGeneration() {setTestPatternGeneration(false);}
 signals:
     //Signals that final processed image is ready
     void readyFrame(QImage screenImage);
@@ -43,10 +48,14 @@ private:
     //Start timer based on frame rate
     void startFrameTimer();
 
+    //Generate test pattern
+    QImage generateTestPattern();
+
     std::unique_ptr<ScreenCapture> pScreen;
     QTimer *pFrameTimer;
 
     QMutex pMutex;
     int pFrameRate;
+    bool pTestPatternGenerationEnabled;
 };
 

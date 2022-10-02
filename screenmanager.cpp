@@ -5,6 +5,8 @@
 #include "gdiscreencapture.h"
 #include "x11screencapture.h"
 #include <QTimer>
+#include <QPainter>
+#include <QConicalGradient>
 
 //Constructor
 ScreenManager::ScreenManager(int frameRate, QObject *parent) : QObject(parent), pFrameRate(frameRate)
@@ -91,13 +93,38 @@ void ScreenManager::setEnabled(bool state)
         pFrameTimer->stop();
 }
 
+//Test pattern generation mode
+void ScreenManager::setTestPatternGeneration(bool state)
+{
+    pTestPatternGenerationEnabled = state;
+    if (pTestPatternGenerationEnabled)
+    {
+        //Test enabled
+        pFrameTimer->start(100); //Slow down timer to 10 fps
+    }
+    else
+    {
+        //Test disabled
+        startFrameTimer(); //Set timer back to normal
+    }
+
+}
+
 //Frame timer slot that is called n times per second
 void ScreenManager::frameTimerElapsed()
 {
-    //Update screen
-    pMutex.lock(); //Lock here just in case we're trying to destroy the pScreen object while capturing
-    emit readyFrame(pScreen->capture());
-    pMutex.unlock();
+    if (pTestPatternGenerationEnabled)
+    {
+        //Update screen with test pattern
+        emit readyFrame(generateTestPattern());
+    }
+    else
+    {
+        //Update screen as normal
+        pMutex.lock(); //Lock here just in case we're trying to destroy the pScreen object while capturing
+        emit readyFrame(pScreen->capture());
+        pMutex.unlock();
+    }
 }
 
 //Start timer based on frame rate
@@ -108,4 +135,22 @@ void ScreenManager::startFrameTimer()
     pFrameTimer->start(frameTime);
 }
 
+//Generate test pattern
+QImage ScreenManager::generateTestPattern()
+{
+    QImage testImage = QImage(320,180, QImage::Format_RGB32);
+    QPainter painter(&testImage);
+
+    //Generate gradient
+    QConicalGradient gradient;
+    //Red - Green - Blue
+    gradient.setColorAt(0, Qt::red);
+    gradient.setColorAt(0.33, Qt::green);
+    gradient.setColorAt(0.66, Qt::blue);
+
+    //Fill with gradient
+    painter.fillRect(testImage.rect(), gradient);
+
+    return testImage;
+}
 
