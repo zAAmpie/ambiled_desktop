@@ -54,7 +54,7 @@ QImage DX11ScreenCapture::capture()
 
     //Create output image from the CPU available texture
     QImage outImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGBA8888);
-    memcpy(outImage.bits(), resource.pData, outImage.sizeInBytes());
+    memcpy(outImage.bits(), resource.pData, outImage.sizeInBytes()); //TODO: bits() does deep-copy
 
     //Clean up
     pDeviceContext->Unmap(pNewTexture, 0);

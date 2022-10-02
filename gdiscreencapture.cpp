@@ -39,7 +39,7 @@ QImage GDIScreenCapture::capture()
     GetDIBits(pCaptureDC, pCaptureBitmap, 0, pScreenSize.height, data, &pInfo, DIB_RGB_COLORS);
 
     //Copy vertically flipped data into output image
-    revmemcpy(outputImage.bits(), data, sizeof(data), outputImage.bytesPerLine());
+    revmemcpy(outputImage.bits(), data, sizeof(data), outputImage.bytesPerLine());  //TODO: bits() does deep-copy
     //Clean up
     delete[] data;
 

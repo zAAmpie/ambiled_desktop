@@ -40,7 +40,7 @@ QImage DX9ScreenCapture::capture()
     QImage outImage = QImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGB32);
 
     //Copy locked rectangle to byte array (flip vertically)
-    revmemcpy(outImage.bits(), lockedRect.pBits, outImage.sizeInBytes(), outImage.bytesPerLine());
+    revmemcpy(outImage.bits(), lockedRect.pBits, outImage.sizeInBytes(), outImage.bytesPerLine());  //TODO: bits() does deep-copy
 
     //Unlock rect
     pSurface->UnlockRect();

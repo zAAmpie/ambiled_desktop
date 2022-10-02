@@ -87,7 +87,7 @@ QImage DXGIScreenCapture::capture()
     ScreenSize newSize = ScreenSize(desc.Height, desc.Width);
     if (newSize != pScreenSize || pFrame.isNull())
         pFrame = QImage(newSize.width, newSize.height, QImage::Format_RGBA8888);
-    memcpy(pFrame.bits(), sr.pData, pFrame.sizeInBytes());
+    memcpy(pFrame.bits(), sr.pData, pFrame.sizeInBytes());  //TODO: bits() does deep-copy
 
     pD3DDeviceContext->Unmap(cpuTex, 0);
 
