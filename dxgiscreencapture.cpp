@@ -1,4 +1,4 @@
-#include "dxgiscreen.h"
+#include "dxgiscreencapture.h"
 
 #ifdef Q_OS_WIN
 //Constructor

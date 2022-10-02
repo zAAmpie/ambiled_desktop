@@ -1,4 +1,4 @@
-#include "dx9screen.h"
+#include "dx9screencapture.h"
 #include "util.h"
 
 #ifdef Q_OS_WIN
