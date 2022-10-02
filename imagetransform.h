@@ -22,10 +22,12 @@ public:
     //Return type
     virtual TransformType type() const;
 
-    //Virtual function that transform an input image into strips
-    virtual ImageStrips transform(QImage inputImage, const StripSizes sizes);
+    //Function that transform an input image into strips
+    ImageStrips transform(QImage inputImage, const StripSizes sizes);
 protected:
     //Copy a specified strip width of an image from a specified side
     QImage copyStrip(const QImage input, int stripSizePx, StripPlacement placement);
+    //Virtual function that averages an individual strip using some strategy
+    virtual QImage averageStrip(const QImage &input, ImageSize size, StripPlacement placement);
 };
 

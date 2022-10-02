@@ -14,23 +14,6 @@ BlockStripTransform::~BlockStripTransform()
 
 }
 
-//Function that transform an input image into strips
-ImageStrips BlockStripTransform::transform(QImage inputImage, const StripSizes sizes)
-{
-    Q_ASSERT(!inputImage.isNull());
-    Q_ASSERT(sizes.isSet());
-
-    ImageStrips outStrips;
-
-    //Do each of the strips
-    outStrips.topLine = averageStrip(inputImage, ImageSize(1, sizes.top), StripPlacement::TopStrip);
-    outStrips.bottomLine = averageStrip(inputImage, ImageSize(1, sizes.bottom), StripPlacement::BottomStrip);
-    outStrips.leftLine = averageStrip(inputImage, ImageSize(1, sizes.left), StripPlacement::LeftStrip);
-    outStrips.rightLine = averageStrip(inputImage, ImageSize(1, sizes.right), StripPlacement::RightStrip);
-
-    return outStrips;
-}
-
 //Average an image
 QImage BlockStripTransform::averageStrip(const QImage &input, ImageSize size, StripPlacement placement)
 {

@@ -13,12 +13,9 @@ public:
 
     //Return type
     TransformType type() const override {return TransformType::BlockTransform;}
-
-    //Virtual function that transform an input image into strips
-    ImageStrips transform(QImage inputImage, const StripSizes sizes) override;
 private:
     //Averages an individual strip using block transform
-    QImage averageStrip(const QImage &input, ImageSize size, StripPlacement placement);
+    QImage averageStrip(const QImage &input, ImageSize size, StripPlacement placement) override;
 
     float pStripWidthPercentage;
 };
