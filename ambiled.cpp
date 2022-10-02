@@ -189,7 +189,7 @@ void AmbiLED::setupGUI()
     ui.averageMethodComboBox->addItem(tr("Strip Averaging (Good/Fast)"), ImageTransform::StripTransform);
     ui.averageMethodComboBox->addItem(tr("Block/Strip Averaging (Nice/Slow)"), ImageTransform::BlockStripTransform);
     ui.averageMethodComboBox->addItem(tr("Block Averaging (Great/Slowest)"), ImageTransform::BlockTransform);
-    connect(ui.averageMethodComboBox, &QComboBox::currentIndexChanged, &AmbiLED::uiAverageMethodComboChanged);
+    connect(ui.averageMethodComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiAverageMethodComboChanged);
 
     //Set up LED positions
     connect(ui.bottomLeftLEDCount, &QSpinBox::valueChanged, this, &AmbiLED::uiLedPositionsChanged);
@@ -490,7 +490,7 @@ void AmbiLED::uiTrayClicked(QSystemTrayIcon::ActivationReason reason)
     //If you click or double click the system tray icon, show the configuration screen
     if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
     {
-        this->setWindowState(this->windowState() & ~Qt::WindowMinimized | Qt::WindowActive);
+        this->setWindowState(this->windowState() & (~Qt::WindowMinimized | Qt::WindowActive));
         this->show();
     }
 }
