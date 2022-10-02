@@ -73,7 +73,7 @@ QImage ScaleProcess::process(QImage inputImage)
 
     //Create bitmap from screen data
     IWICBitmap *WICBitmap = nullptr;
-    HRESULT hr = pWICFactory->CreateBitmapFromMemory(inputImage.width(), inputImage.height(), GUID_WICPixelFormat32bppBGRA, inputImage.bytesPerLine(), inputImage.sizeInBytes(), inputImage.bits(), &WICBitmap);
+    HRESULT hr = pWICFactory->CreateBitmapFromMemory(inputImage.width(), inputImage.height(), GUID_WICPixelFormat32bppBGRA, inputImage.bytesPerLine(), inputImage.sizeInBytes(), inputImage.bits(), &WICBitmap);  //TODO: bits() does deep-copy
     Q_ASSERT(SUCCEEDED(hr));
 
     //Create scaler if it doesn't exist
@@ -110,7 +110,7 @@ QImage ScaleProcess::process(QImage inputImage)
     QImage outImage(pOutputSize.width, pOutputSize.height, inputImage.format());
 
     //Scale
-    hr = pWICScaler->CopyPixels(NULL, outStride, outSize, outImage.bits());
+    hr = pWICScaler->CopyPixels(NULL, outStride, outSize, outImage.bits());  //TODO: bits() does deep-copy
     Q_ASSERT(SUCCEEDED(hr));
 
     //Relase

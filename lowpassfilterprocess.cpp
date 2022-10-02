@@ -33,8 +33,8 @@ QImage LowPassFilterProcess::process(QImage inputImage)
 
     float ePow = 1 - qExp(-deltaTime * 2 * PI * pFilterCutoff);
     //Simple LP filter simply mixes current and previous samples (this will halve the effective update speed though)
-    BYTE* inputArray = inputImage.bits();
-    BYTE* previousArray = previousImage.bits();
+    BYTE* inputArray = inputImage.bits();  //TODO: bits() does deep-copy
+    BYTE* previousArray = previousImage.bits();  //TODO: bits() does deep-copy
     qint64 arrayLength = inputImage.sizeInBytes();
 
     for (qint32 i = 0; i < arrayLength; ++i)
