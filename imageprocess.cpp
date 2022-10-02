@@ -1,7 +1,7 @@
 #include "imageprocess.h"
 
 //Constructor
-ImageProcess::ImageProcess()
+ImageProcess::ImageProcess(QObject *parent) : QObject(parent)
 {
 
 }

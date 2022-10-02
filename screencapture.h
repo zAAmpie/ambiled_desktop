@@ -16,11 +16,11 @@ public:
     ~ScreenCapture();
 
     //Get methods
-    virtual CaptureMode type() const;
+    virtual CaptureMode type() const = 0;
     ScreenSize size() const {return pScreenSize;}
 
     //Main function to start capturing the screen
-    virtual QImage capture();
+    virtual QImage capture() = 0;
 protected:
 #ifdef Q_OS_WIN
     //Calculate window size

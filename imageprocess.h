@@ -11,13 +11,13 @@ public:
     //Default order in list is the default priority, i.e. first will be executed first by default
     enum ProcessType {BlackBarRemoval, SampleScale, LinearScale, CubicScale, LowPassFilter}; Q_ENUM(ProcessType);
 
-    ImageProcess();
+    ImageProcess(QObject *parent = nullptr);
     ~ImageProcess();
 
     //Returns the type
-    virtual ProcessType type() const;
+    virtual ProcessType type() const = 0;
 
     //Virtual function that processes an input image into an output
-    virtual QImage process(QImage inputImage);
+    virtual QImage process(QImage inputImage) = 0;
 };
 
