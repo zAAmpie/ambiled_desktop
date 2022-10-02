@@ -49,9 +49,9 @@ private:
     //Checks if process exists in the process list and returns the index
     int indexOfProcess(ImageProcess::ProcessType type);
     //Creates a process of a given type and passes through the pointer
-    std::unique_ptr<ImageProcess> createProcessOfType(ImageProcess::ProcessType type);
+    ImageProcess *createProcessOfType(ImageProcess::ProcessType type);
 
-    QList<std::unique_ptr<ImageProcess>> pProcessList;
+    QList<ImageProcess *> pProcessList;
     QMap<ImageProcess::ProcessType, ProcessStatus> pProcessStatus;
     std::unique_ptr<ImageTransform> pTransform;
 

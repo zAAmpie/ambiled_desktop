@@ -108,7 +108,7 @@ void ProcessManager::startProcess(QImage screen, StripSizes sizes)
 void ProcessManager::sortProcessList()
 {
     //Sort by priority (get priority from map)
-    std::sort(pProcessList.begin(), pProcessList.end(), [=] (std::unique_ptr<ImageProcess> &v1, std::unique_ptr<ImageProcess> &v2) {return pProcessStatus.value(v1->type()).priority < pProcessStatus.value(v2->type()).priority;});
+    std::sort(pProcessList.begin(), pProcessList.end(), [=] (ImageProcess *v1, ImageProcess *v2) {return pProcessStatus.value(v1->type()).priority < pProcessStatus.value(v2->type()).priority;});
 }
 
 //Checks if process exists in the process list and returns the index
@@ -123,21 +123,23 @@ int ProcessManager::indexOfProcess(ImageProcess::ProcessType type)
 }
 
 //Creates a process of a given type and passes through the pointer
-std::unique_ptr<ImageProcess> ProcessManager::createProcessOfType(ImageProcess::ProcessType type)
+ImageProcess *ProcessManager::createProcessOfType(ImageProcess::ProcessType type)
 {
     switch (type)
     {
     case ImageProcess::BlackBarRemoval:
-        return std::unique_ptr<ImageProcess>(new BlackBarProcess());
+        return new BlackBarProcess();
     case ImageProcess::LowPassFilter:
-        return std::unique_ptr<ImageProcess>(new LowPassFilterProcess());
+        return new LowPassFilterProcess();
     //TODO: Make these configurable, currently hardcoded to 50% scaling
     case ImageProcess::CubicScale:
-        return std::unique_ptr<ImageProcess>(new ScaleProcess(ImageProcess::CubicScale, 0.5));
+        return new ScaleProcess(ImageProcess::CubicScale, 0.5);
     case ImageProcess::LinearScale:
-        return std::unique_ptr<ImageProcess>(new ScaleProcess(ImageProcess::LinearScale, 0.5));
+        return new ScaleProcess(ImageProcess::LinearScale, 0.5);
     case ImageProcess::SampleScale:
-        return std::unique_ptr<ImageProcess>(new ScaleProcess(ImageProcess::SampleScale, 0.5));
+        return new ScaleProcess(ImageProcess::SampleScale, 0.5);
+    default:
+        return nullptr;
     }
 }
 
