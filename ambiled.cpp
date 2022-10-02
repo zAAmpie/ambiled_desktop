@@ -1,8 +1,8 @@
 #include <QtWidgets>
 #include "ambiled.h"
+#include "pixmaputils.h"
 
-
-
+//Constructor
 AmbiLED::AmbiLED(QWidget *parent)
     : QMainWindow(parent),     //Set up local variables
       pReadCounter(0),
@@ -17,13 +17,14 @@ AmbiLED::AmbiLED(QWidget *parent)
 
     //Create map of enum
     createSettingsMap();
-
 	//Create new settings object
 	pSettings = new QSettings("zAAm", "AmbiLED");
 
-    //Set up serial port options
-    serialDeviceStatusChanged(false);
+    //Set up initial UI
+    setupGUI();
 
+    //Set up serial port options
+    serialManagerDeviceStatusChanged(false);
 	foreach (QSerialPortInfo info, QSerialPortInfo::availablePorts())
 	{
 		ui.comPortComboBox->addItem(info.portName().isEmpty() ? info.description() : info.portName());
@@ -31,60 +32,51 @@ AmbiLED::AmbiLED(QWidget *parent)
     ui.comPortComboBox->setCurrentIndex(0);
 
 	//Create serial port object
-    serialPort = new Serial(ui.comPortComboBox->currentText());
-
-    connect(this, &AmbiLED::writeLEDImage, serialPort, &Serial::writeLEDImage);
-    connect(serialPort, &Serial::readyForTransmit, this, &AmbiLED::serialPortReady);
-    connect(serialPort, &Serial::serialDataRead, this, &AmbiLED::serialPortDataRead);
-    connect(serialPort, &Serial::serialDataWritten, this, &AmbiLED::serialPortDataWritten);
-    connect(this, &AmbiLED::updateSerialPort, serialPort, &Serial::changeSerialPort);
-    connect(serialPort, &Serial::deviceStatusChanged, this, &AmbiLED::serialDeviceStatusChanged);
-    //connect(serialPort, &Serial::luxValueChanged, this, &AmbiLED::luxValueChanged);
+    pSerialManager = new SerialManager(ui.comPortComboBox->currentText());
+    connect(this, &AmbiLED::serialManagerWriteLEDImage, pSerialManager, &SerialManager::writeLEDImage);
+    connect(pSerialManager, &SerialManager::readyForTransmit, this, &AmbiLED::serialManagerReadyForTransmit);
+    connect(pSerialManager, &SerialManager::serialDataRead, this, &AmbiLED::serialManagerSerialDataRead);
+    connect(pSerialManager, &SerialManager::serialDataWritten, this, &AmbiLED::serialManagerSerialDataWritten);
+    connect(pSerialManager, &SerialManager::deviceStatusChanged, this, &AmbiLED::serialManagerDeviceStatusChanged);
+    connect(pSerialManager, &SerialManager::luxValueChanged, this, &AmbiLED::serialManagerLuxValueChanged);
 
 	pSerialPortReady = true;
 
     //Create LED object
-    leds = new LEDS();
+    pLeds = std::unique_ptr<LEDS>(new LEDS());
 
 	//Create screen capture object
-	capture = new ScreenCapture(this);
-    connect(this, &AmbiLED::updateScreenCapture, capture, &ScreenCapture::captureScreen);
-    connect(capture, &ScreenCapture::returnCapturedStrips, this, &AmbiLED::displayStrips);
-    connect(capture, &ScreenCapture::returnFullScreen, this, &AmbiLED::displayFullScreen);
-    connect(capture, &ScreenCapture::captureFailed, this, &AmbiLED::captureFailed);
+    pScreenManager = new ScreenManager(ui.refreshRateComboBox->currentData().toInt(), this);
+    connect(pScreenManager, &ScreenManager::readyFrame, this, &AmbiLED::screenManagerReadyFrame);
+    connect(pScreenManager, &ScreenManager::failed, this, &AmbiLED::screenManagerFailed);
 
     //Move capturing of the screen to another thread. Will need to see if that's possible with X11
     pCaptureThread = new ExecThread();
-    capture->moveToThread(pCaptureThread);
+    pScreenManager->moveToThread(pCaptureThread);
     pCaptureThread->start();
 
-    //Create screen update timer
-    pScreenUpdateTimer = new QTimer();
-    pScreenUpdateTimer->setTimerType(Qt::PreciseTimer);
-    connect(pScreenUpdateTimer, &QTimer::timeout, this, &AmbiLED::captureScreen);
-    pScreenUpdateTimer->start(ui.refreshRateComboBox->currentData().toInt());
-
 	//Create elapsed timer for FPS
-	elapsedTimer = new QElapsedTimer();
-	elapsedTimer->start();
+    pElapsedFrameTimer = new QElapsedTimer();
+    pElapsedFrameTimer->start();
 
     //Create elapsed timer for Serial writes
-	elapsedSerialTimer = new QElapsedTimer();
-	elapsedSerialTimer->start();
+    pElapsedSerialTimer = new QElapsedTimer();
+    pElapsedSerialTimer->start();
 
     //Notify the relevant objects of the LED positions
-    ledPositionsChanged();
+    uiLedPositionsChanged();
 
     //Update GUI with relevant statistics
-	uiUpdateTimer = new QTimer();
-	uiUpdateTimer->setTimerType(Qt::PreciseTimer);
-	connect(uiUpdateTimer, SIGNAL(timeout()), this, SLOT(updateUIElements()));
-	uiUpdateTimer->start(200); //Update at a rate of 5Hz
+    pUiUpdateTimer = new QTimer();
+    pUiUpdateTimer->setTimerType(Qt::PreciseTimer);
+    connect(pUiUpdateTimer, &QTimer::timeout, this, &AmbiLED::updateUIElements);
+    pUiUpdateTimer->start(200); //Update at a rate of 5Hz
 
     //Read and populate previous settings
 	readSettings();
 }
 
+//Destructor
 AmbiLED::~AmbiLED()
 {
     pCaptureThread->quit();
@@ -97,11 +89,11 @@ AmbiLED::~AmbiLED()
     }
 	
 	//Free frame buffer data
-	delete capture;
-	delete serialPort;
-    delete leds;
+    pScreenManager->deleteLater();
+    pSerialManager->deleteLater();
 }
 
+//Set up UI
 void AmbiLED::setupGUI()
 {
     //Set up GUI
@@ -119,7 +111,7 @@ void AmbiLED::setupGUI()
     ui.BRlabel->setStyleSheet(placeHolderStyle);
 
     //Set up COM port
-    connect(ui.comPortComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(serialPortChanged(int)));
+    connect(ui.comPortComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiSerialPortChanged);
 
     //Enumerate refresh rate options
     ui.refreshRateComboBox->addItem(tr("Maximum"), 1);
@@ -134,23 +126,29 @@ void AmbiLED::setupGUI()
     ui.refreshRateComboBox->addItem(tr("5 Hz"), 200);
     ui.refreshRateComboBox->addItem(tr("1 Hz"), 1000);
     ui.refreshRateComboBox->setCurrentIndex(2);
-    connect(ui.refreshRateComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(refreshRateChanged(int)));
+    connect(ui.refreshRateComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiRefreshRateChanged);
 
     //Set up capture mode
+    ui.captureComboBox->addItem(tr("DXGI"), ScreenCapture::DXGIMode);
+    ui.captureComboBox->addItem(tr("DirectX 9"), ScreenCapture::DirectX9Mode);
+    ui.captureComboBox->addItem(tr("DirectX 11"), ScreenCapture::DirectX11Mode);
+    ui.captureComboBox->addItem(tr("GDI"), ScreenCapture::GDIMode);
+#ifdef Q_OS_UNIX
     ui.captureComboBox->addItem(tr("X11"), ScreenCapture::X11Mode);
+#endif
     ui.captureComboBox->setCurrentIndex(0);
-    connect(ui.captureComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(captureModeChanged(int)));
+    connect(ui.captureComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiCaptureModeChanged);
 
     //Set up brightness slider
-    connect(ui.brightnessSlider, SIGNAL(valueChanged(int)), this, SLOT(brightnessChanged(int)));
+    connect(ui.brightnessSlider, &QSlider::valueChanged, this, &AmbiLED::uiBrightnessChanged);
     connect(ui.brightnessSlider, &QSlider::valueChanged, this, [=]() {ui.brightnessValueLabel->setText(tr("%1%").arg(ui.brightnessSlider->value())); });
     ui.brightnessValueLabel->setText(tr("%1%").arg(ui.brightnessSlider->value()));
 
     //Set up debug connection
-    connect(ui.debugCheckBox, SIGNAL(toggled(bool)), this, SLOT(toggleDebugMode()));
+    connect(ui.debugCheckBox, &QCheckBox::toggled, this, &AmbiLED::uiDebugModeToggled);
 
     //Set up visualise connection
-    connect(ui.visualiseCheckBox, SIGNAL(toggled(bool)), this, SLOT(toggleFullscreenMode()));
+    connect(ui.visualiseCheckBox, &QCheckBox::toggled, this, &AmbiLED::uiFullscreenModeToggled);
 
     //Set up colour correction selection
     ui.colourTemperatureComboBox->addItem(tr("Candle"), LEDS::Candle);
@@ -175,43 +173,43 @@ void AmbiLED::setupGUI()
     ui.colourTemperatureComboBox->addItem(tr("Uncorrected Temperature"), LEDS::UncorrectedTemperature);
     ui.colourTemperatureComboBox->addItem(tr("Custom"), 0);
     ui.colourTemperatureComboBox->setCurrentIndex(19);
-    connect(ui.colourTemperatureComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(colourCorrectionComboChanged(int)));
+    connect(ui.colourTemperatureComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiColourTempComboChanged);
 
     //Set up custom colour sliders
     connect(ui.redColourSlider, &QSlider::valueChanged, this, [=]() {ui.redColourLabel->setText(QString::number(ui.redColourSlider->value())); });
     connect(ui.greenColourSlider, &QSlider::valueChanged, this, [=]() {ui.greenColourLabel->setText(QString::number(ui.greenColourSlider->value())); });
     connect(ui.blueColourSlider, &QSlider::valueChanged, this, [=]() {ui.blueColourLabel->setText(QString::number(ui.blueColourSlider->value())); });
 
-    connect(ui.redColourSlider, SIGNAL(valueChanged(int)), this, SLOT(colourCorrectionChanged()));
-    connect(ui.greenColourSlider, SIGNAL(valueChanged(int)), this, SLOT(colourCorrectionChanged()));
-    connect(ui.blueColourSlider, SIGNAL(valueChanged(int)), this, SLOT(colourCorrectionChanged()));
+    connect(ui.redColourSlider, &QSlider::valueChanged, this, &AmbiLED::uiColourTempSlidersChanged);
+    connect(ui.greenColourSlider, &QSlider::valueChanged, this, &AmbiLED::uiColourTempSlidersChanged);
+    connect(ui.blueColourSlider, &QSlider::valueChanged, this, &AmbiLED::uiColourTempSlidersChanged);
 
     //Set up averaging mode
-    ui.averageMethodComboBox->addItem(tr("No Averaging (Basic/Fastest)"), ScreenCapture::NoAveraging);
-    ui.averageMethodComboBox->addItem(tr("Strip Averaging (Good/Fast)"), ScreenCapture::StripAveraging);
-    ui.averageMethodComboBox->addItem(tr("Block/Strip Averaging (Nice/Slow)"), ScreenCapture::StripAveraging);
-    ui.averageMethodComboBox->addItem(tr("Block Averaging (Great/Slowest)"), ScreenCapture::BlockAveraging);
-    connect(ui.averageMethodComboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(averageMethodComboChanged(int)));
+    ui.averageMethodComboBox->addItem(tr("Simple Averaging (Basic/Fastest)"), ImageTransform::SimpleTransform);
+    ui.averageMethodComboBox->addItem(tr("Strip Averaging (Good/Fast)"), ImageTransform::StripTransform);
+    ui.averageMethodComboBox->addItem(tr("Block/Strip Averaging (Nice/Slow)"), ImageTransform::BlockStripTransform);
+    ui.averageMethodComboBox->addItem(tr("Block Averaging (Great/Slowest)"), ImageTransform::BlockTransform);
+    connect(ui.averageMethodComboBox, &QComboBox::currentIndexChanged, &AmbiLED::uiAverageMethodComboChanged);
 
     //Set up LED positions
-    connect(ui.bottomLeftLEDCount, SIGNAL(valueChanged(int)), this, SLOT(ledPositionsChanged()));
-    connect(ui.bottomRightLEDCount, SIGNAL(valueChanged(int)), this, SLOT(ledPositionsChanged()));
-    connect(ui.gapLEDCount, SIGNAL(valueChanged(int)), this, SLOT(ledPositionsChanged()));
-    connect(ui.leftLEDCount, SIGNAL(valueChanged(int)), this, SLOT(ledPositionsChanged()));
-    connect(ui.rightLEDCount, SIGNAL(valueChanged(int)), this, SLOT(ledPositionsChanged()));
-    connect(ui.topLEDCount, SIGNAL(valueChanged(int)), this, SLOT(ledPositionsChanged()));
+    connect(ui.bottomLeftLEDCount, &QSpinBox::valueChanged, this, &AmbiLED::uiLedPositionsChanged);
+    connect(ui.bottomRightLEDCount, &QSpinBox::valueChanged, this, &AmbiLED::uiLedPositionsChanged);
+    connect(ui.gapLEDCount, &QSpinBox::valueChanged, this, &AmbiLED::uiLedPositionsChanged);
+    connect(ui.leftLEDCount, &QSpinBox::valueChanged, this, &AmbiLED::uiLedPositionsChanged);
+    connect(ui.rightLEDCount, &QSpinBox::valueChanged, this, &AmbiLED::uiLedPositionsChanged);
+    connect(ui.topLEDCount, &QSpinBox::valueChanged, this, &AmbiLED::uiLedPositionsChanged);
 
     //Set up device firmware label connetion
-    connect(ui.deviceStatusColourLabel, SIGNAL(clicked()), this, SLOT(showDeviceFirmware()));
+    connect(ui.deviceStatusColourLabel, &QPushButton::clicked, this, &AmbiLED::showDeviceFirmware);
 
     //Set up save/discard button
-    connect(ui.saveConfigButton, SIGNAL(clicked()), this, SLOT(writeSettings()));
-    connect(ui.discardConfigButton, SIGNAL(clicked()), this, SLOT(readSettings()));
+    connect(ui.saveConfigButton, &QPushButton::clicked, this, &AmbiLED::writeSettings);
+    connect(ui.discardConfigButton, &QPushButton::clicked, this, &AmbiLED::readSettings);
 
     //Create tray icon
     createActions();
     createTrayIcon();
-    tray->show();
+    pTray->show();
 
     //Set up icon and title
     setWindowIcon(QIcon(":/AmbiLED/monitor_icon"));
@@ -236,7 +234,7 @@ void AmbiLED::readSettings()
 	{
         QString portName = pSettings->value(pSettingsMap.value(SerialPortSetting)).toString();
 		ui.comPortComboBox->setCurrentText(portName);
-		emit updateSerialPort(portName);
+        pSerialManager->changeSerialPort(portName);
 	}
     if (pSettings->contains(pSettingsMap.value(RefreshRateSetting)))
         ui.refreshRateComboBox->setCurrentText(pSettings->value(pSettingsMap.value(RefreshRateSetting)).toString());
@@ -293,8 +291,9 @@ void AmbiLED::writeSettings()
     pSettings->setValue(pSettingsMap.value(LEDPositionsBottomRightSetting), ui.bottomRightLEDCount->value());
 }
 
+//===== SERIAL MANAGER SLOTS FOR SIGNALS =====
 //Slot to get data from serial port
-void AmbiLED::serialPortDataRead(QByteArray data)
+void AmbiLED::serialManagerSerialDataRead(QByteArray data)
 {
     //Serial port has responded with data read, let's read it
 	QDataStream stream(data);
@@ -314,48 +313,100 @@ void AmbiLED::serialPortDataRead(QByteArray data)
 	pSerialBytesWritten = 0;
 }
 
+//Serial port has written some data
+void AmbiLED::serialManagerSerialDataWritten(int bytes)
+{
+    pSerialBytesWritten += bytes;
+}
+
 //Serial port has replied that it's ready
-void AmbiLED::serialPortReady()
+void AmbiLED::serialManagerReadyForTransmit()
 {
 	pSerialPortReady = true;
 }
 
-//Serial port has written some data
-void AmbiLED::serialPortDataWritten(int bytes)
+//Hardware status has changed
+void AmbiLED::serialManagerDeviceStatusChanged(bool status)
 {
-	pSerialBytesWritten += bytes;
+    //Device is now connected
+    if (status)
+    {
+        ui.deviceStatusLabel->setText(tr("Connected"));
+        QIcon connectedIcon(pConnectedPixmap);
+        ui.deviceStatusColourLabel->setIcon(connectedIcon);
+        ui.deviceStatusColourLabel->setIconSize(pConnectedPixmap.rect().size());
+        ui.deviceStatusColourLabel->setFixedSize(pConnectedPixmap.rect().size());
+    }
+    //Device is disconnected
+    else
+    {
+        ui.deviceStatusLabel->setText(tr("Disconnected"));
+        QIcon disconnectedIcon(pDisconnectedPixmap);
+        ui.deviceStatusColourLabel->setIcon(disconnectedIcon);
+        ui.deviceStatusColourLabel->setIconSize(pDisconnectedPixmap.rect().size());
+        ui.deviceStatusColourLabel->setFixedSize(pDisconnectedPixmap.rect().size());
+    }
+}
+
+//Different lux value has been received
+void AmbiLED::serialManagerLuxValueChanged()
+{
+    ui.brightnessSlider->setValue(pLeds->transformLuxToBrightness(pSerialManager->getLux()));
+}
+
+//===== UI SLOTS FOR SIGNALS =====
+//Clicked on system tray
+void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
+
+//Toggle screen capture
+void AmbiLED::uiScreenCaptureToggled()
+{
+    pCaptureEnabled = !pCaptureEnabled;
+    pScreenManager->setEnabled(pCaptureEnabled);
+    pSuspendAction->setChecked(pCaptureEnabled);
+}
+
+//Toggle debug mode
+void AmbiLED::uiDebugModeToggled()
+{
+    pDebugMode = ui.debugCheckBox->isChecked();
+    pScreenManager->setTestPatternGeneration(pDebugMode);
+}
+
+//Visualise fullscreen mode toggled
+void AmbiLED::uiFullscreenModeToggled()
+{
+    pFullscreenMode = ui.visualiseCheckBox->isChecked();
+
+    if (!pFullscreenMode)
+    {
+        //If disabling, reset the label
+        ui.screenLabel->setPixmap(QPixmap());
+        QString placeHolderStyle = tr("QLabel { background-color : black; }");
+        ui.screenLabel->setStyleSheet(placeHolderStyle);
+    }
 }
 
 //Capture refresh rate changed
-void AmbiLED::refreshRateChanged(int index)
+void AmbiLED::uiRefreshRateChanged(int index)
 {
-	//Set the timer to display at new refresh rate
-    pScreenUpdateTimer->start(ui.refreshRateComboBox->itemData(index).toInt());
-}
-
-//Capture mode has been changed
-void AmbiLED::captureModeChanged(int index)
-{
-    //Directly set the capture mode (this will not be queued - TODO)
-    capture->setCaptureMode(static_cast<ScreenCapture::CaptureMode>(ui.captureComboBox->itemData(index).toInt()));
+    pScreenManager->setFrameRate(ui.refreshRateComboBox->itemData(index).toInt());
 }
 
 //Slider has been moved to change brightness
-void AmbiLED::brightnessChanged(int value)
+void AmbiLED::uiBrightnessChanged(int value)
 {
-    leds->setBrightness(static_cast<qreal>(value) / 100.0);
+    pLeds->setBrightness(static_cast<qreal>(value) / 100.0);
 }
 
-//User has selected a different serial port
-void AmbiLED::serialPortChanged(int)
+//Capture mode has been changed
+void AmbiLED::uiCaptureModeChanged(int index)
 {
-	//QString	selectedPortName = ui.comPortComboBox->itemText(index);
-	QString	selectedPortName = ui.comPortComboBox->currentText();
-    emit updateSerialPort(selectedPortName);
+    pScreenManager->setCaptureMode(static_cast<ScreenCapture::CaptureMode>(ui.captureComboBox->itemData(index).toInt()));
 }
 
 //LED positions have changed
-void AmbiLED::ledPositionsChanged()
+void AmbiLED::uiLedPositionsChanged()
 {
     LEDPositions p;
     p.t = ui.topLEDCount->value();
@@ -365,22 +416,31 @@ void AmbiLED::ledPositionsChanged()
     p.br = ui.bottomRightLEDCount->value();
     p.bg = ui.gapLEDCount->value();
 
-    leds->setPositions(p);
+    pLeds->setPositions(p);
+}
+
+//User has selected a different serial port
+void AmbiLED::uiSerialPortChanged(int index)
+{
+    Q_UNUSED(index);
+
+	QString	selectedPortName = ui.comPortComboBox->currentText();
+    pSerialManager->changeSerialPort(selectedPortName);
 }
 
 //Colour correction has changed
-void AmbiLED::colourTemperatureChanged()
+void AmbiLED::uiColourTempSlidersChanged()
 {
-    leds->setColourTemperature(ui.redColourSlider->value(), ui.greenColourSlider->value(), ui.blueColourSlider->value());
+    pLeds->setColourTemperature(ui.redColourSlider->value(), ui.greenColourSlider->value(), ui.blueColourSlider->value());
 }
 
 //Preset colour correction has changed
-void AmbiLED::colourTemperatureComboChanged(int index)
+void AmbiLED::uiColourTempComboChanged(int index)
 {
     int selectedValue = ui.colourTemperatureComboBox->itemData(index).toInt();
 	if (selectedValue)
 	{
-        leds->setColourTemperature(selectedValue);
+        pLeds->setColourTemperature(selectedValue);
 
 		//Disable sliders
 		ui.redColourSlider->setEnabled(false);
@@ -418,422 +478,270 @@ void AmbiLED::colourTemperatureComboChanged(int index)
 }
 
 //Different average method has been selected
-void AmbiLED::averageMethodComboChanged(int index)
+void AmbiLED::uiAverageMethodComboChanged(int index)
 {
-    ScreenCapture::AverageMode averageMode = static_cast<ScreenCapture::AverageMode>(ui.averageMethodComboBox->itemData(index).toInt());
-    //Set without queueing - TODO
-    capture->setAverageMode(averageMode);
+    ImageTransform::TransformType transformType = static_cast<ImageTransform::TransformType>(ui.averageMethodComboBox->itemData(index).toInt());
+    pProcessManager->setTransform(transformType);
 }
 
-//Different lux value has been received
-void AmbiLED::luxValueChanged()
+//Clicked on system tray
+void AmbiLED::uiTrayClicked(QSystemTrayIcon::ActivationReason reason)
 {
-    ui.brightnessSlider->setValue(leds->transformLuxToBrightness(serialPort->getLux()));
+    //If you click or double click the system tray icon, show the configuration screen
+    if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
+    {
+        this->setWindowState(this->windowState() & ~Qt::WindowMinimized | Qt::WindowActive);
+        this->show();
+    }
 }
 
-//Toggle screen capture
-void AmbiLED::toggleCapture()
+//===== SCREEN MANAGER SLOTS FOR SIGNALS =====
+//Final processed image is ready
+void AmbiLED::screenManagerReadyFrame(QImage screenImage)
 {
-	pCaptureScreen = !pCaptureScreen;
-	suspendAction->setChecked(pCaptureScreen);
-}
+    //Display fullscreen on UI
+    if (pFullscreenMode)
+        displayFullScreen(screenImage);
 
-//Toggle debug mode
-void AmbiLED::toggleDebugMode()
-{
-    pDebugMode = ui.debugCheckBox->isChecked();
-}
+    //Reset idle mode if currently activated
+    if (pCaptureIdleMode)
+        disableIdleMode();
 
-//Visualise fullscreen mode toggled
-void AmbiLED::toggleFullscreenMode()
-{
-    //No queueing of this - TODO
-    capture->setFullscreenEnabled(ui.visualiseCheckBox->isChecked());
+    //Send the captured frame for processing
+    emit processManagerStartProcess(screenImage, pLeds->getStripSizes());
 }
 
 //If capture has failed, slow down the timer
-void AmbiLED::screenManagerFailed()
+void AmbiLED::screenManagerFailed(QString message)
 {
+    Q_UNUSED(message);
+
 	if (!pCaptureIdleMode)
-	{
-		//Enable idle mode (only capture once per second)
-		pCaptureIdleMode = true;
-        pScreenUpdateTimer->start(1000);
-	}
+        enableIdleMode();
 }
 
-void AmbiLED::trayClicked(QSystemTrayIcon::ActivationReason reason)
+//===== PROCESS MANAGER SLOTS FOR SIGNALS =====
+//Processing has been completed
+void AmbiLED::processManagerReadyProcess(ImageStrips strips)
 {
-	//If you click or double click the system tray icon, show the configuration screen
-	if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
-	{
-		this->setWindowState(this->windowState() & ~Qt::WindowMinimized | Qt::WindowActive);
-		this->show();
-	}
+    Q_ASSERT(!strips.isNull());
+
+    //Display the strips on the UI
+    displayStrips(strips);
+
+    //Update the LED representation of the strip
+    pLeds->updateLED(strips);
+
+    //Send the strip information to the serial port (if it's ready)
+    QImage stripImage = pLeds->getStrip();
+
+    if (pSerialPortReady)
+    {
+        //Serial port is ready
+        pSerialPortReady = false;
+        qint64 elapsed = pElapsedSerialTimer->elapsed();
+        while (pSerialAverageQueue.count() < 10) //Smoothing
+            pSerialAverageQueue.enqueue(elapsed);
+
+        pSerialAverageQueue.enqueue(elapsed);
+        pSerialAverageQueue.dequeue();
+
+        pElapsedSerialTimer->restart();
+        emit serialManagerWriteLEDImage(stripImage);
+    }
+
+    //Update the UI LED image at the bottom
+    displayLEDStrip(stripImage);
 }
 
-void AmbiLED::captureScreen()
+//Processing failure
+void AmbiLED::processManagerFailed(QString message)
 {
-	//Capture screen normally and send through to serial
-    if (pCaptureScreen && !pDebugMode)
-	{
-        emit updateScreenCapture(leds->getPositions());
-	}
+    Q_UNUSED(message);
 
-    //If Debug Mode, don't capture screen, rather send the test pattern
-    if (pDebugMode)
-	{
-        QPair<QImage, ImageStrips> output = leds->generateTestPattern();
-
-        sendLEDData(output.first);
-        displayStrips(output.second);
-		ui.screenLabel->clear();
-	}
+    if (!pCaptureIdleMode)
+        enableIdleMode();
 }
 
+//===== CLASS FUNCTIONS =====
+//Display image on label
 void AmbiLED::displayStrips(ImageStrips outLines)
 {
-	if (pCaptureIdleMode)
-	{
-		//Reset idle mode
-		pCaptureIdleMode = false;
-        pScreenUpdateTimer->start(ui.refreshRateComboBox->currentData().toInt());
-	}
+    //Early out if not visible
+    if (!this->isVisible())
+        return;
 
-	if (this->isVisible())
-	{
-        if (!outLines.isNull())
-        {
-            QPixmap top = QPixmap::fromImage(outLines.topLine.scaled(ui.topImage->width(), ui.topImage->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
-            QPixmap bottom = QPixmap::fromImage(outLines.bottomLine.scaled(ui.bottomImage->width(), ui.bottomImage->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
-            QPixmap left = QPixmap::fromImage(outLines.leftLine.scaled(ui.leftImage->width(), ui.leftImage->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
-            QPixmap right = QPixmap::fromImage(outLines.rightLine.scaled(ui.rightImage->width(), ui.rightImage->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    //Ensure everything is valid
+    Q_ASSERT(!outLines.isNull());
+    if (outLines.isNull())
+        return;
 
-            //Draw arrows to show direction of LED data shift
-            drawArrow(top, AmbiLED::RightArrow, Qt::white, ui.topImage->width() / 2 + 10, -1, ui.topImage->width() / 2 + 10, "Strip #1");
-            drawArrow(top, AmbiLED::LeftArrow, Qt::white, ui.topImage->width() / 2 + 10, -1, ui.topImage->width() / 2 + 10, "Strip #2");
-            drawArrow(left, AmbiLED::UpArrow, Qt::white, 0, -1, -1, "Strip #1");
-            drawArrow(right, AmbiLED::UpArrow, Qt::white, 0, -1, -1, "Strip #2");
+    //Generate pixmaps from the images
+    QPixmap top = QPixmap::fromImage(outLines.topLine.scaled(ui.topImage->width(), ui.topImage->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    QPixmap bottom = QPixmap::fromImage(outLines.bottomLine.scaled(ui.bottomImage->width(), ui.bottomImage->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    QPixmap left = QPixmap::fromImage(outLines.leftLine.scaled(ui.leftImage->width(), ui.leftImage->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    QPixmap right = QPixmap::fromImage(outLines.rightLine.scaled(ui.rightImage->width(), ui.rightImage->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
 
-            int bottomLeftIndex = (ui.bottomImage->width() * leds->getPositions().bl) / leds->getPositions().getBottomCount();
-            int bottomRightIndex = (ui.bottomImage->width() * leds->getPositions().br) / leds->getPositions().getBottomCount();
-            drawArrow(bottom, AmbiLED::LeftArrow, Qt::white, 0, -1, bottomLeftIndex, "Strip #1");
-            drawArrow(bottom, AmbiLED::RightArrow, Qt::white, 0, -1, bottomRightIndex, "Strip #2");
+    //Draw arrows to show direction of LED data shift
+    PixmapUtils::drawArrow(top, PixmapUtils::RightArrow, Qt::white, ui.topImage->width() / 2 + 10, -1, ui.topImage->width() / 2 + 10, "Strip #1");
+    PixmapUtils::drawArrow(top, PixmapUtils::LeftArrow, Qt::white, ui.topImage->width() / 2 + 10, -1, ui.topImage->width() / 2 + 10, "Strip #2");
+    PixmapUtils::drawArrow(left, PixmapUtils::UpArrow, Qt::white, 0, -1, -1, "Strip #1");
+    PixmapUtils::drawArrow(right, PixmapUtils::UpArrow, Qt::white, 0, -1, -1, "Strip #2");
 
-            ui.topImage->setPixmap(top);
-            ui.bottomImage->setPixmap(bottom);
-            ui.leftImage->setPixmap(left);
-            ui.rightImage->setPixmap(right);
-        }
+    LEDPositions currentPositions = pLeds->getPositions();
+    int bottomLeftIndex = (ui.bottomImage->width() * currentPositions.bl) / currentPositions.getBottomCount();
+    int bottomRightIndex = (ui.bottomImage->width() * currentPositions.br) / currentPositions.getBottomCount();
+    PixmapUtils::drawArrow(bottom, PixmapUtils::LeftArrow, Qt::white, 0, -1, bottomLeftIndex, "Strip #1");
+    PixmapUtils::drawArrow(bottom, PixmapUtils::RightArrow, Qt::white, 0, -1, bottomRightIndex, "Strip #2");
 
-		//Display delay
-        qint64 elapsed = elapsedTimer->elapsed();
-		while (pFrameAverageQueue.count() < 10)
-		{
-			pFrameAverageQueue.enqueue(elapsed);
-		}
-		pFrameAverageQueue.enqueue(elapsed);
-		pFrameAverageQueue.dequeue();
-		//ui.frameLabel->setText(tr("Latency: %1 msec (%2/s)").arg(elapsed).arg(1000 / elapsed));
-		elapsedTimer->restart();
-	}
+    ui.topImage->setPixmap(top);
+    ui.bottomImage->setPixmap(bottom);
+    ui.leftImage->setPixmap(left);
+    ui.rightImage->setPixmap(right);
+
+    //Add the frame time
+    qint64 elapsed = pElapsedFrameTimer->elapsed();
+    while (pFrameAverageQueue.count() < 10) //Smooth the frame counter
+        pFrameAverageQueue.enqueue(elapsed);
+
+    pFrameAverageQueue.enqueue(elapsed);
+    pFrameAverageQueue.dequeue();
+    pElapsedFrameTimer->restart();
 }
 
+//Display full screen on label
 void AmbiLED::displayFullScreen(QImage image)
 {
-	if (this->isVisible())
-	{
-        if (ui.visualiseCheckBox->isChecked() && !pDebugMode)
-		{
-            QPixmap screen = QPixmap::fromImage(image.scaled(ui.screenLabel->width(), ui.screenLabel->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
-			//if (ui.stripAverageCheckBox->isChecked())
-            //drawAverageBars(screen, Qt::red);
-			ui.screenLabel->setPixmap(screen);
-		}
-		else
-		{
-			ui.screenLabel->setPixmap(QPixmap());
-			QString placeHolderStyle = tr("QLabel { background-color : black; }");
-			ui.screenLabel->setStyleSheet(placeHolderStyle);
-		}
-	}
+    //Early out if not visible
+    if (!this->isVisible())
+        return;
+
+    Q_ASSERT(!image.isNull());
+
+    //Create pixmap and set the label to it
+    QPixmap screen = QPixmap::fromImage(image.scaled(ui.screenLabel->width(), ui.screenLabel->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    ui.screenLabel->setPixmap(screen);
 }
 
-//Hardware status has changed
-void AmbiLED::serialDeviceStatusChanged(bool status)
+//Update the UI LED image at the bottom
+void AmbiLED::displayLEDStrip(QImage image)
 {
-	if (status)
-	{
-		ui.deviceStatusLabel->setText(tr("Connected"));
-		QIcon connectedIcon(connectedPixmap);
-		ui.deviceStatusColourLabel->setIcon(connectedIcon);
-		ui.deviceStatusColourLabel->setIconSize(connectedPixmap.rect().size());
-		ui.deviceStatusColourLabel->setFixedSize(connectedPixmap.rect().size());
-	}
-	else
-	{
-		ui.deviceStatusLabel->setText(tr("Disconnected"));
-		QIcon disconnectedIcon(disconnectedPixmap);
-		ui.deviceStatusColourLabel->setIcon(disconnectedIcon);
-		ui.deviceStatusColourLabel->setIconSize(disconnectedPixmap.rect().size());
-		ui.deviceStatusColourLabel->setFixedSize(disconnectedPixmap.rect().size());
-	}
+    //Early out if not visibile
+    if (!this->isVisible())
+        return;
+
+    Q_ASSERT(!image.isNull());
+
+    //Create pixmap and set the label to it
+    ui.ledStrip->setPixmap(QPixmap::fromImage(image.scaled(ui.ledStrip->width(), ui.ledStrip->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation)));
 }
 
-//Send LED data
-void AmbiLED::sendLEDData(QImage led)
-{
-    //transformBrightness(led, pBrightness);
-	if (this->isVisible())
-	{
-        ui.ledStrip->setPixmap(QPixmap::fromImage(led.scaled(ui.ledStrip->width(), ui.ledStrip->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation)));
-	}
-
-	if (pSerialPortReady)
-	{
-		pSerialPortReady = false;
-        qint64 elapsed = elapsedSerialTimer->elapsed();
-		while (pSerialAverageQueue.count() < 10)
-		{
-			pSerialAverageQueue.enqueue(elapsed);
-		}
-		pSerialAverageQueue.enqueue(elapsed);
-		pSerialAverageQueue.dequeue();
-		//ui.serialLabel->setText(tr("Serial latency: %1 msec (%2/s)").arg(elapsed).arg(1000 / elapsed));
-		elapsedSerialTimer->restart();
-        emit writeLEDImage(led);
-	}
-}
-
+//Update UI elements that require it
 void AmbiLED::updateUIElements()
 {
+    //Calculate average serial latency
 	qreal averageSerialLatency = 0;
     for (int i = 0; i < pSerialAverageQueue.count(); ++i)
-	{
 		averageSerialLatency += pSerialAverageQueue.at(i);
-	}
 	averageSerialLatency /= pSerialAverageQueue.count();
 
+    //Calculate average frame latency
 	qreal averageFrameLatency = 0;
     for (int i = 0; i < pFrameAverageQueue.count(); ++i)
-	{
 		averageFrameLatency += pFrameAverageQueue.at(i);
-	}
 	averageFrameLatency /= pFrameAverageQueue.count();
 
+    //Update serial and frame labels
 	ui.serialLabel->setText(tr("Serial latency: %1 msec (%2 Hz)").arg(averageSerialLatency, 0, 'f', 2).arg(1000.0 / averageSerialLatency, 0, 'f', 2));
 	ui.frameLabel->setText(tr("Latency: %1 msec (%2 Hz)").arg(averageFrameLatency, 0, 'f', 2).arg(1000.0 / averageFrameLatency, 0, 'f', 2));
 }
 
+//Show popup with device firmware and information
 void AmbiLED::showDeviceFirmware()
 {
-	if (!serialPort->connected())
+    if (!pSerialManager->connected())
 		return;
 
-    QMessageBox::information(this, tr("Device information"), tr("%1").arg(serialPort->getFirmwareVersion()), QMessageBox::Ok);
+    QMessageBox::information(this, tr("Device information"), tr("%1").arg(pSerialManager->getFirmwareVersion()), QMessageBox::Ok);
 }
 
-/*
-void AmbiLED::transformBrightness(QImage &led, qreal brightness)
+//Set idle mode
+void AmbiLED::setIdleMode(bool state)
 {
-	if (brightness > 1.0 || brightness < 0.0)
-		return;
+    pCaptureIdleMode = state;
 
-	//Correct colour based on typical SMD5050 LED spectrum
-	
-    qreal rCorrection = brightness * static_cast<qreal>(((pColourCorrection >> 16) & 0xFF)) / 255.0;
-    qreal gCorrection = brightness * static_cast<qreal>(((pColourCorrection >> 8) & 0xFF)) / 255.0;
-    qreal bCorrection = brightness * static_cast<qreal>(((pColourCorrection) & 0xFF)) / 255.0;
-
-    for (int i = 0; i < led.width(); ++i)
-	{
-		QColor pixel = led.pixelColor(i, 0);
-		pixel.setRedF(pixel.redF() * rCorrection);
-		pixel.setGreenF(pixel.greenF() * gCorrection);
-		pixel.setBlueF(pixel.blueF() * bCorrection);
-		led.setPixelColor(i, 0, pixel);
-	}
+    //Set relevant frame rate
+    if (pCaptureIdleMode)
+        pScreenManager->setFrameRate(1);
+    else
+        pScreenManager->setFrameRate(ui.refreshRateComboBox->currentData().toInt());
 }
 
-
-QImage AmbiLED::generateTestPattern(const LEDPositions& positions, ImageStripsInput &outputLinePattern)
-{
-	//Generate a test pattern based on current positions
-    int totalWidth = positions.getLength();
-	QImage testPattern(totalWidth + 10, 1, QImage::Format_RGB32);
-
-	/*
-	Screen is shown from front
-
-	LEDs are done clockwise from front
-
-	//Positions as viewed from FRONT of monitor
-	// -------- t ---------
-	// |                  |
-	// l                  r
-	// |                  |
-	// -- bl -- bg -- br --
-
-	bl = 32
-	br = 32
-	l = 42
-	r = 42
-	top left = 37
-	top right = 38
-
-	Packing order is:
-
-	bottom left (rtl) --> left (btt) --> top (ltr) --> right (ttb) --> bottom right (rtl)
-
-	For QImage:
-
-	rtl = reverse
-	btt = reverse
-	ltr = normal
-	ttb = normal
-
-	*/
-/*
-    int dataIndex = 0;
-    int stripLength = 120;
-
-    //Generate ImageStripsInput
-	outputLinePattern.bottomLine = QImage(positions.getBottomCount(), 1, QImage::Format_RGB32);
-	outputLinePattern.bottomLine.fill(Qt::black);
-	outputLinePattern.topLine = QImage(positions.t, 1, QImage::Format_RGB32);
-	outputLinePattern.leftLine = QImage(1, positions.l, QImage::Format_RGB32);
-	outputLinePattern.rightLine = QImage(1, positions.r, QImage::Format_RGB32);
-
-	//Start with first status led
-	testPattern.setPixel(QPoint(dataIndex++, 0), qRgb(64, 64, 64));
-
-	//Start with bottom left
-    for (int i = positions.bl - 1; i >= 0; --i)
-	{
-		testPattern.setPixel(QPoint(dataIndex++, 0), qRgb(0, 255, 255));
-		outputLinePattern.bottomLine.setPixel(QPoint(i, 0), qRgb(0, 255, 255));
-	}
-
-	//Append left
-    for (int i = positions.l - 1; i >= 0; --i)
-	{
-		testPattern.setPixel(QPoint(dataIndex++, 0), qRgb(0, 255, 0));
-		outputLinePattern.leftLine.setPixel(QPoint(0, i), qRgb(0, 255, 0));
-	}
-
-	//Append left 50% of top
-    int topBreak = positions.t / 2;
-    for (int i = 0; i < topBreak; ++i)
-	{
-		testPattern.setPixel(QPoint(dataIndex++, 0), qRgb(255, 255, 0));
-		outputLinePattern.topLine.setPixel(QPoint(i, 0), qRgb(255, 255, 0));
-	}
-
-	//Append extra for additional end of strip
-    for (int i = 0; i < stripLength - topBreak - positions.l - positions.bl - 1; ++i)
-		testPattern.setPixel(QPoint(dataIndex++, 0), qRgb(0, 0, 0));
-
-	//Next status led
-	testPattern.setPixel(QPoint(dataIndex++, 0), qRgb(64, 64, 64));
-
-	//Append bottom right
-    for (int i = positions.getBottomCount() - positions.br; i < positions.getBottomCount(); ++i)
-	{
-		testPattern.setPixel(QPoint(dataIndex++, 0), qRgb(255, 0, 255));
-		outputLinePattern.bottomLine.setPixel(QPoint(i, 0), qRgb(255, 0, 255));
-	}
-
-	//Append right
-    for (int i = positions.r - 1; i >= 0; --i)
-	{
-		testPattern.setPixel(QPoint(dataIndex++, 0), qRgb(255, 0, 0));
-		outputLinePattern.rightLine.setPixel(QPoint(0, i), qRgb(255, 0, 0));
-	}
-
-	//Append right 50% of top
-    for (int i = positions.t - 1; i >= topBreak; --i)
-	{
-		testPattern.setPixel(QPoint(dataIndex++, 0), qRgb(0, 0, 255));
-		outputLinePattern.topLine.setPixel(QPoint(i, 0), qRgb(0, 0, 255));
-	}
-
-	//Append extra for additional end of strip
-    for (int i = 0; i < 10; ++i)
-		testPattern.setPixel(QPoint(dataIndex++, 0), qRgb(0, 0, 0));
-
-	return testPattern;
-
-}
-*/
-
-
-
+//Override that gets called when window is closing
 void AmbiLED::closeEvent(QCloseEvent *event)
 {
     Q_UNUSED(event)
-	writeSettings();
-	/*
-    //pScreenUpdateTimer->stop();
-	if (this->isVisible())
-	{
-		//QMessageBox::information(this, tr("AmbiLED Control"), tr("The program has been minimized to system tray"));
-		tray->showMessage(tr("AmbiLED Control"), tr("AmbiLED Control has been minimised to system tray"), QSystemTrayIcon::Information, 1000);
-		hide();
-		event->ignore();
-	}
-	*/
+    //Try to write current settings
+    writeSettings();
 }
 
+//Override that gets called when window is minimised
 void AmbiLED::hideEvent(QHideEvent* event)
 {
-	if (event->spontaneous())
-	{
-		if (!pNotificationShown)
-		{
-			tray->showMessage(tr("AmbiLED Control"), tr("AmbiLED Control has been minimised to system tray"), QSystemTrayIcon::Information, 500);
-			pNotificationShown = true;
-		}
-		//event->ignore();
-		hide();
-	}
+    //Don't handle when it goes out of focus etc.
+    if (!event->spontaneous())
+        return;
+
+    //Show notification once
+    if (!pNotificationShown)
+    {
+        pTray->showMessage(tr("AmbiLED Control"), tr("AmbiLED Control has been minimised to system tray"), QSystemTrayIcon::Information, 500);
+        pNotificationShown = true;
+    }
+    hide();
 }
 
+//===== UI SETUP FUNCTIONS =====
 void AmbiLED::createActions()
 {
-	quitAction = new QAction(tr("&Quit"), this);
-	connect(quitAction, SIGNAL(triggered()), this, SLOT(close()));
+    //Create all the relevant actions and their signals
+    pQuitAction = new QAction(tr("&Quit"), this);
+    connect(pQuitAction, &QAction::triggered, this, &AmbiLED::close);
 
-	configureAction = new QAction(tr("&Configure"), this);
-	connect(configureAction, SIGNAL(triggered()), this, SLOT(showNormal()));
+    pConfigureAction = new QAction(tr("&Configure"), this);
+    connect(pConfigureAction, &QAction::triggered, this, &AmbiLED::showNormal);
 
-	suspendAction = new QAction(tr("Capture &Screen"), this);
-	suspendAction->setCheckable(true);
-	suspendAction->setChecked(true);
-	connect(suspendAction, SIGNAL(triggered()), this, SLOT(toggleCapture()));
+    pSuspendAction = new QAction(tr("Capture &Screen"), this);
+    pSuspendAction->setCheckable(true);
+    pSuspendAction->setChecked(true);
+    connect(pSuspendAction, &QAction::triggered, this, &AmbiLED::uiScreenCaptureToggled);
 }
 
 void AmbiLED::createTrayIcon()
 {
+    Q_ASSERT(pQuitAction && pConfigureAction && pSuspendAction);
+
+    //Create the system tray menu
 	QMenu *trayMenu = new QMenu(this);
-	trayMenu->addAction(suspendAction);
-	trayMenu->addAction(configureAction);
-	trayMenu->addAction(quitAction);	
+    trayMenu->addAction(pSuspendAction);
+    trayMenu->addAction(pConfigureAction);
+    trayMenu->addAction(pQuitAction);
 
-	tray = new QSystemTrayIcon(this);
-	tray->setToolTip(tr("AmbiLED v%1").arg(VERSION_STR));
-	tray->setIcon(QIcon(":/AmbiLED/monitor_icon"));
-	tray->setContextMenu(trayMenu);
+    pTray = new QSystemTrayIcon(this);
+    pTray->setToolTip(tr("AmbiLED v%1").arg(VERSION_STR));
+    pTray->setIcon(QIcon(":/AmbiLED/monitor_icon"));
+    pTray->setContextMenu(trayMenu);
 
-	connect(tray, SIGNAL(activated(QSystemTrayIcon::ActivationReason)), this, SLOT(trayClicked(QSystemTrayIcon::ActivationReason)));
+    connect(pTray, &QSystemTrayIcon::activated, this, &AmbiLED::uiTrayClicked);
 }
 
 void AmbiLED::createPixmaps()
 {
 	//Create transparent surfaces
-	connectedPixmap = QPixmap(16,16);
-	connectedPixmap.fill(Qt::transparent);
-	disconnectedPixmap = QPixmap(16, 16);
-	disconnectedPixmap.fill(Qt::transparent);
+    pConnectedPixmap = QPixmap(16,16);
+    pConnectedPixmap.fill(Qt::transparent);
+    pDisconnectedPixmap = QPixmap(16, 16);
+    pDisconnectedPixmap.fill(Qt::transparent);
 
 	QPen pen;
 	pen.setColor(Qt::black);
@@ -844,7 +752,7 @@ void AmbiLED::createPixmaps()
 
 	//Create connected icon (green circle)
 	brush.setColor(Qt::green);
-	QPainter connectedPainter(&connectedPixmap);
+    QPainter connectedPainter(&pConnectedPixmap);
 	connectedPainter.setPen(pen);
 	connectedPainter.setBrush(brush);
 
@@ -852,9 +760,11 @@ void AmbiLED::createPixmaps()
 	
 	//Create disconnected icon (red circle)
 	brush.setColor(Qt::red);
-	QPainter disconnectedPainter(&disconnectedPixmap);
+    QPainter disconnectedPainter(&pDisconnectedPixmap);
 	disconnectedPainter.setPen(pen);
 	disconnectedPainter.setBrush(brush);
 
 	disconnectedPainter.drawEllipse(0, 0, 15, 15);
 }
+
+

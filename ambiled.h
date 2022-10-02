@@ -91,10 +91,6 @@ private:
     void serialManagerSerialDataWritten(int bytes);
     //Serial port can transmit more data
     void serialManagerReadyForTransmit();
-    //DSR changed
-    void serialManagerDsrChanged(bool state);
-    //Serial port has been closed
-    void serialManagerSerialPortClosed();
     //Device is connected or not
     void serialManagerDeviceStatusChanged(bool active);
     //Lux value has changed
@@ -103,6 +99,10 @@ private:
     //===== UI SLOTS FOR SIGNALS =====
     //Toggle screen capture
     void uiScreenCaptureToggled();
+    //Debug mode toggled
+    void uiDebugModeToggled();
+    //Visualise fullscreen mode toggled
+    void uiFullscreenModeToggled();
     //The refresh rate has been changed
     void uiRefreshRateChanged(int index);
     //Slider has been moved to change brightness
@@ -111,16 +111,14 @@ private:
     void uiCaptureModeChanged(int index);
     //LED positions have been changed
     void uiLedPositionsChanged();
+    //Serial port selection has changed
+    void uiSerialPortChanged(int index);
     //Colour correction sliders have been changed
     void uiColourTempSlidersChanged();
     //Colour correction preset has been changed
     void uiColourTempComboChanged(int index);
     //Averaging method preset has been changed
     void uiAverageMethodComboChanged(int index);
-    //Debug mode toggled
-    void uiDebugModeToggled();
-    //Visualise fullscreen mode toggled
-    void uiFullscreenModeToggled();
     //Clicked on system tray
     void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
 
@@ -129,6 +127,8 @@ private:
     void displayStrips(ImageStrips outLines);
     //Display full screen on label
     void displayFullScreen(QImage image);
+    //Update the UI LED image at the bottom
+    void displayLEDStrip(QImage image);
     //Update UI elements that require it
     void updateUIElements();
     //Show popup with device firmware and information
@@ -136,6 +136,10 @@ private:
     //Setting related
     void readSettings();
     void writeSettings();
+    //Set idle mode
+    void setIdleMode(bool state);
+    void enableIdleMode() {setIdleMode(true);}
+    void disableIdleMode() {setIdleMode(false);}
 
     //===== UI SETUP FUNCTIONS =====
     void createActions();
@@ -148,7 +152,7 @@ private:
     SerialManager *pSerialManager;
     ScreenManager *pScreenManager;
     ProcessManager *pProcessManager;
-    LEDS *pLeds;
+    std::unique_ptr<LEDS> pLeds;
     ExecThread *pCaptureThread;
 
     Ui::AmbiLEDClass ui;
@@ -165,7 +169,7 @@ private:
     QMenu *pTrayMenu;
 
     //Timers
-    QElapsedTimer *pElapsedCaptureTimer;
+    QElapsedTimer *pElapsedFrameTimer;
     QElapsedTimer *pElapsedSerialTimer;
     QTimer *pUiUpdateTimer;
 
@@ -183,7 +187,8 @@ private:
     //Current states
     bool pNotificationShown;
     bool pSerialPortReady;
-    bool pCaptureScreen;
+    bool pCaptureEnabled;
+    bool pFullscreenMode;
     bool pDebugMode;
     bool pCaptureIdleMode;
 };
