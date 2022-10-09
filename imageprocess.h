@@ -12,7 +12,7 @@ public:
     enum ProcessType {BlackBarRemoval, SampleScale, LinearScale, CubicScale, LowPassFilter}; Q_ENUM(ProcessType);
 
     ImageProcess(QObject *parent = nullptr);
-    ~ImageProcess();
+    virtual ~ImageProcess();
 
     //Returns the type
     virtual ProcessType type() const = 0;

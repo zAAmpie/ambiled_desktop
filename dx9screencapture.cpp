@@ -36,8 +36,9 @@ CaptureValue DX9ScreenCapture::capture()
     if (FAILED(hr))
         return CaptureValue("DX9ScreenCapture: Could not lock front buffer", pFrame);
 
-    //Copy locked rectangle to byte array (flip vertically)
-    revmemcpy(pFrame.bits(), lockedRect.pBits, pFrame.sizeInBytes(), pFrame.bytesPerLine());  //TODO: bits() does deep-copy
+    //Copy locked rectangle to byte array
+    memcpy(pFrame.bits(), lockedRect.pBits, pFrame.sizeInBytes());
+    //revmemcpy(pFrame.bits(), lockedRect.pBits, pFrame.sizeInBytes(), pFrame.bytesPerLine());  //TODO: bits() does deep-copy
 
     //Unlock rect
     pSurface->UnlockRect();

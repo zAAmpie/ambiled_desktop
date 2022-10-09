@@ -16,7 +16,7 @@ public:
     enum CaptureMode {GDIMode, DirectX9Mode, DirectX11Mode, DXGIMode, X11Mode};
 
     ScreenCapture();
-    ~ScreenCapture();
+    virtual ~ScreenCapture();
 
     //Get methods
     virtual CaptureMode type() const = 0;

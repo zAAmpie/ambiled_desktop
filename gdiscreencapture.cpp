@@ -19,7 +19,7 @@ GDIScreenCapture::~GDIScreenCapture()
 CaptureValue GDIScreenCapture::capture()
 {
     //Create or use existing bitmap (in case screen size has changed)
-    Error createError = createBitmap();
+    Error createError = createVariables();
     if (createError != NoError)
         return CaptureValue(createError, pFrame);
 
@@ -43,16 +43,33 @@ CaptureValue GDIScreenCapture::capture()
 }
 
 //Creates a bitmap that is sized to the current screen
-Error GDIScreenCapture::createBitmap()
+Error GDIScreenCapture::createVariables()
 {
+    //If already initialised, check if everything is still as expected
+    if (pInitialised)
+    {
+        //Get current desktop size
+        WindowSizeValue newSize = getWindowSize(pDesktopWnd);
+        if (newSize.error != NoError)
+            return newSize.error;
+
+        if (newSize.value == pScreenSize && pCaptureBitmap)
+            //Bitmap is still the same size, so it's fine
+            return NoError;
+    }
+
+    //Start from scratch
+    cleanup();
+
+    //Create GDI variables
+    pDesktopWnd = GetDesktopWindow();
+    pDesktopDC = GetDC(pDesktopWnd);
+    pCaptureDC = CreateCompatibleDC(pDesktopDC);
+
     //Get current desktop size
     WindowSizeValue newSize = getWindowSize(pDesktopWnd);
     if (newSize.error != NoError)
         return newSize.error;
-
-    if (newSize.value == pScreenSize && pCaptureBitmap)
-        //Bitmap is still the same size, so it's fine
-        return NoError;
 
     //Reset screen size
     pScreenSize = newSize.value;

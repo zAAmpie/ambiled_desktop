@@ -18,7 +18,7 @@ ScreenManager::ScreenManager(int frameRate, QObject *parent) : QObject(parent), 
 
     //Set up screen capture
 #ifdef Q_OS_WIN
-    pScreen = std::unique_ptr<ScreenCapture>(new DXGIScreenCapture());
+    pScreen = std::make_unique<DXGIScreenCapture>();
 #endif
 #ifdef Q_OS_UNIX
     pScreen = std::unique_ptr<ScreenCapture>(new X11ScreenCapture());
@@ -49,16 +49,16 @@ void ScreenManager::setCaptureMode(ScreenCapture::CaptureMode mode)
     {
 #ifdef Q_OS_WIN
     case ScreenCapture::GDIMode:
-        pScreen = std::unique_ptr<ScreenCapture>(new GDIScreenCapture());
+        pScreen = std::make_unique<GDIScreenCapture>();
         break;
     case ScreenCapture::DirectX9Mode:
-        pScreen = std::unique_ptr<ScreenCapture>(new DX9ScreenCapture());
+        pScreen = std::make_unique<DX9ScreenCapture>();
         break;
     case ScreenCapture::DirectX11Mode:
-        pScreen = std::unique_ptr<ScreenCapture>(new DX11ScreenCapture());
+        pScreen = std::make_unique<DX11ScreenCapture>();
         break;
     case ScreenCapture::DXGIMode:
-        pScreen = std::unique_ptr<ScreenCapture>(new DXGIScreenCapture());
+        pScreen = std::make_unique<DXGIScreenCapture>();
         break;
 #endif
 #ifdef Q_OS_UNIX
@@ -125,11 +125,11 @@ void ScreenManager::frameTimerElapsed()
         //Update screen as normal
         pMutex.lock(); //Lock here just in case we're trying to destroy the pScreen object while capturing
         CaptureValue captureValue = pScreen->capture();
-        if (captureValue.success())
+        pMutex.unlock();
+        if (captureValue.success() && !captureValue.value.isNull())
             emit readyFrame(captureValue.value);
         else
             emit failed(captureValue.error);
-        pMutex.unlock();
     }
 }
 

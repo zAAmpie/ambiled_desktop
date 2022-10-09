@@ -20,7 +20,7 @@ public:
     CaptureValue capture() override;
 private:
     //Creates a bitmap that is sized to the current screen
-    Error createBitmap();
+    Error createVariables();
 
     //Clean up
     void cleanup();

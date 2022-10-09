@@ -506,6 +506,8 @@ void AmbiLED::uiTrayClicked(QSystemTrayIcon::ActivationReason reason)
 //Final processed image is ready
 void AmbiLED::screenManagerReadyFrame(QImage screenImage)
 {
+    Q_ASSERT(!screenImage.isNull());
+
     //Display fullscreen on UI
     if (pFullscreenMode)
         displayFullScreen(screenImage);

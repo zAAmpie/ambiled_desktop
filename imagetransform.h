@@ -17,7 +17,7 @@ public:
     enum StripPlacement {TopStrip, BottomStrip, LeftStrip, RightStrip};
 
     ImageTransform();
-    ~ImageTransform();
+    virtual ~ImageTransform();
 
     //Return type
     virtual TransformType type() const = 0;
