@@ -521,7 +521,7 @@ void AmbiLED::screenManagerReadyFrame(QImage screenImage)
 //If capture has failed, slow down the timer
 void AmbiLED::screenManagerFailed(QString message)
 {
-    Q_UNUSED(message);
+    ui.debugLabel->setText(message);
 
 	if (!pCaptureIdleMode)
         enableIdleMode();

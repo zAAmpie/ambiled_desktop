@@ -3,7 +3,9 @@
 #include "dx9screencapture.h"
 #include "dxgiscreencapture.h"
 #include "gdiscreencapture.h"
+#ifdef Q_OS_UNIX
 #include "x11screencapture.h"
+#endif
 #include <QTimer>
 #include <QPainter>
 #include <QConicalGradient>
@@ -122,7 +124,11 @@ void ScreenManager::frameTimerElapsed()
     {
         //Update screen as normal
         pMutex.lock(); //Lock here just in case we're trying to destroy the pScreen object while capturing
-        emit readyFrame(pScreen->capture());
+        CaptureValue captureValue = pScreen->capture();
+        if (captureValue.success())
+            emit readyFrame(captureValue.value);
+        else
+            emit failed(captureValue.error);
         pMutex.unlock();
     }
 }
