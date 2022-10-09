@@ -102,4 +102,5 @@ private:
 
 	bool pDeviceConnected;
     int pUpdatesMissed;
+    bool pInitialised;
 };

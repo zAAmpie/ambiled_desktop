@@ -7,7 +7,7 @@
 #include "util.h"
 
 //Constructor
-SerialManager::SerialManager(QString portName, QObject *parent) : QObject(parent), pFirmwareVersion("Not connected"), pUpdatesMissed(0)
+SerialManager::SerialManager(QString portName, QObject *parent) : QObject(parent), pFirmwareVersion("Not connected"), pUpdatesMissed(0), pInitialised(false)
 {
     //Create the serial port in the same thread
     pSerialPort = new QSerialPort(portName);
@@ -144,6 +144,9 @@ void SerialManager::requestLux()
 //Write to serial port
 void SerialManager::writeToSerialPort(QByteArray data)
 {
+    if (!pInitialised)
+        return;
+
     long long bytesWritten = pSerialPort->write(data);
     Q_ASSERT(bytesWritten == data.length());
 }
@@ -161,12 +164,16 @@ void SerialManager::changeSerialPort(QString portName)
     if (pSerialPort->isOpen())
         pSerialPort->close();
 
+    pInitialised = false;
+
 	//Change port name
     pSerialPort->setPortName(portName);
 
 	//Re-open the port
     if (!pSerialPort->open(QIODevice::ReadWrite))
 		qDebug() << "Could not open port '" << portName << "'";
+    else
+        pInitialised = true;
 
     pMutex.unlock();
 
@@ -222,12 +229,6 @@ void SerialManager::serialPortReadyRead()
 
 			//Read type and length from header
 			stream >> type >> length;
-
-			if (length < 0 || length > 0xFF)
-			{
-				//Length is probably corrupt - wait for more
-				return;
-			}
 
             for (int i = 0; i < length; ++i)
 			{
