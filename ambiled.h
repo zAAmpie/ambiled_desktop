@@ -119,6 +119,8 @@ private:
     void uiColourTempComboChanged(int index);
     //Averaging method preset has been changed
     void uiAverageMethodComboChanged(int index);
+    //Selection was changed in the processing list
+    void uiProcessListSelectionChanged();
     //Clicked on system tray
     void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
 
@@ -154,6 +156,7 @@ private:
     ProcessManager *pProcessManager;
     std::unique_ptr<LEDS> pLeds;
     ExecThread *pCaptureThread;
+    ExecThread *pProcessThread;
 
     Ui::AmbiLEDClass ui;
 

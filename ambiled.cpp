@@ -50,6 +50,8 @@ AmbiLED::AmbiLED(QWidget *parent)
     pScreenManager = new ScreenManager(ui.refreshRateComboBox->currentData().toInt());
     connect(pScreenManager, &ScreenManager::readyFrame, this, &AmbiLED::screenManagerReadyFrame);
     connect(pScreenManager, &ScreenManager::failed, this, &AmbiLED::screenManagerFailed);
+    uiCaptureModeChanged(ui.captureComboBox->currentIndex());
+    uiFullscreenModeToggled();
 
     //Move capturing of the screen to another thread. Will need to see if that's possible with X11
     pCaptureThread = new ExecThread();
@@ -61,6 +63,11 @@ AmbiLED::AmbiLED(QWidget *parent)
     connect(pProcessManager, &ProcessManager::readyProcess, this, &AmbiLED::processManagerReadyProcess);
     connect(pProcessManager, &ProcessManager::failed, this, &AmbiLED::processManagerFailed);
     connect(this, &AmbiLED::processManagerStartProcess, pProcessManager, &ProcessManager::startProcess);
+    uiAverageMethodComboChanged(ui.averageMethodComboBox->currentIndex());
+
+    //pProcessThread = new ExecThread();
+    //pProcessManager->moveToThread(pProcessThread);
+    //pProcessThread->start();
 
 	//Create elapsed timer for FPS
     pElapsedFrameTimer = new QElapsedTimer();
@@ -87,7 +94,7 @@ AmbiLED::AmbiLED(QWidget *parent)
 AmbiLED::~AmbiLED()
 {
     pCaptureThread->quit();
-    if (pCaptureThread->wait(5000))
+    if (pCaptureThread->wait(2000))
         delete pCaptureThread;
     else
     {
@@ -197,6 +204,12 @@ void AmbiLED::setupGUI()
     ui.averageMethodComboBox->addItem(tr("Block/Strip Averaging (Nice/Slow)"), ImageTransform::BlockStripTransform);
     ui.averageMethodComboBox->addItem(tr("Block Averaging (Great/Slowest)"), ImageTransform::BlockTransform);
     connect(ui.averageMethodComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiAverageMethodComboChanged);
+
+    //Set up processing list
+    QListWidgetItem *blackBarWidget = new QListWidgetItem(tr("Remove black bars"));
+    blackBarWidget->setData(Qt::UserRole, ImageProcess::BlackBarRemoval);
+    ui.processingList->addItem(blackBarWidget);
+    connect(ui.processingList, &QListWidget::itemSelectionChanged, this, &AmbiLED::uiProcessListSelectionChanged);
 
     //Set up LED positions
     connect(ui.bottomLeftLEDCount, &QSpinBox::valueChanged, this, &AmbiLED::uiLedPositionsChanged);
@@ -489,6 +502,20 @@ void AmbiLED::uiAverageMethodComboChanged(int index)
 {
     ImageTransform::TransformType transformType = static_cast<ImageTransform::TransformType>(ui.averageMethodComboBox->itemData(index).toInt());
     pProcessManager->setTransform(transformType);
+}
+
+//Selection was changed in the processing list
+void AmbiLED::uiProcessListSelectionChanged()
+{
+    for (int i = 0; i < ui.processingList->count(); ++i)
+    {
+        QListWidgetItem *currentItem = ui.processingList->item(i);
+        if (currentItem->isSelected())
+            pProcessManager->enableProcess(currentItem->data(Qt::UserRole).value<ImageProcess::ProcessType>());
+        else
+            pProcessManager->disableProcess(currentItem->data(Qt::UserRole).value<ImageProcess::ProcessType>());
+    }
+
 }
 
 //Clicked on system tray

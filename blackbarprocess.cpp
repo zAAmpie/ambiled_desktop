@@ -25,8 +25,12 @@ QImage BlackBarProcess::process(QImage inputImage)
 
     //Try and remove any black bars on the top and bottom
     int topLineSkip = getFirstNonBlackLine(inputImage);
-    int bottomLineSkip = getLastNonBlackLine(inputImage);
+    int bottomLineSkip = inputImage.height() - getLastNonBlackLine(inputImage) - 1;
     int reducedHeight = inputImage.height() - bottomLineSkip - topLineSkip;
+
+    //Early out if it's the same height
+    if (reducedHeight == inputImage.height())
+        return inputImage;
 
     //Set some constants
     int scanLineBytes = inputImage.width() * (inputImage.depth() >> 3); //Number of bytes in a scanline
@@ -69,7 +73,7 @@ int BlackBarProcess::getFirstNonBlackLine(const QImage image)
         }
     } while (idxLine < stopLine && sum < blackThreshold);
 
-    return idxLine;
+    return idxLine - 1;
 }
 
 int BlackBarProcess::getLastNonBlackLine(const QImage image)
@@ -106,6 +110,6 @@ int BlackBarProcess::getLastNonBlackLine(const QImage image)
         }
     } while (idxLine > stopLine && sum < blackThreshold);
 
-    return idxLine;
+    return idxLine + 1;
 }
 

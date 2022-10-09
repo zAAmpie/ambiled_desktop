@@ -16,7 +16,7 @@ ProcessManager::ProcessManager(QObject *parent) : QObject(parent)
         pProcessStatus.insert(static_cast<ImageProcess::ProcessType>(metaEnum.value(i)), ProcessStatus(i, false));
 
     //Create default transform
-    pTransform = std::unique_ptr<ImageTransform>(new BlockStripTransform());
+    pTransform = std::make_unique<BlockStripTransform>();
 }
 
 ProcessManager::~ProcessManager()
@@ -71,16 +71,16 @@ void ProcessManager::setTransform(ImageTransform::TransformType type)
     switch (type)
     {
     case ImageTransform::BlockStripTransform:
-        pTransform = std::unique_ptr<ImageTransform>(new BlockStripTransform());
+        pTransform = std::make_unique<BlockStripTransform>();
         break;
     case ImageTransform::StripTransform:
-        pTransform = std::unique_ptr<ImageTransform>(new StripTransform());
+        pTransform = std::make_unique<StripTransform>();
         break;
     case ImageTransform::SimpleTransform:
-        pTransform = std::unique_ptr<ImageTransform>(new SimpleTransform());
+        pTransform = std::make_unique<SimpleTransform>();
         break;
     case ImageTransform::BlockTransform:
-        pTransform = std::unique_ptr<ImageTransform>(new BlockTransform());
+        pTransform = std::make_unique<BlockTransform>();
         break;
     }
     pMutex.unlock();
