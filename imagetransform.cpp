@@ -23,8 +23,8 @@ ImageStrips ImageTransform::transform(QImage inputImage, const StripSizes sizes)
     //Do each of the strips
     outStrips.topLine = averageStrip(inputImage, ImageSize(1, sizes.top), StripPlacement::TopStrip);
     outStrips.bottomLine = averageStrip(inputImage, ImageSize(1, sizes.bottom), StripPlacement::BottomStrip);
-    outStrips.leftLine = averageStrip(inputImage, ImageSize(1, sizes.left), StripPlacement::LeftStrip);
-    outStrips.rightLine = averageStrip(inputImage, ImageSize(1, sizes.right), StripPlacement::RightStrip);
+    outStrips.leftLine = averageStrip(inputImage, ImageSize(sizes.left, 1), StripPlacement::LeftStrip);
+    outStrips.rightLine = averageStrip(inputImage, ImageSize(sizes.right, 1), StripPlacement::RightStrip);
 
     return outStrips;
 }
