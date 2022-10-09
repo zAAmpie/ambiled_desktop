@@ -21,7 +21,7 @@ class ProcessManager : public QObject
     Q_OBJECT
     /* Manages all processing of a given screen image */
 public:
-    ProcessManager();
+    ProcessManager(QObject *parent = nullptr);
     ~ProcessManager();
 
     //Processing can be enabled and disabled (0 - n) - thread-safe

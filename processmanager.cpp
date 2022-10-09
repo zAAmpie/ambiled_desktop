@@ -8,7 +8,7 @@
 #include "striptransform.h"
 #include <QMetaEnum>
 
-ProcessManager::ProcessManager()
+ProcessManager::ProcessManager(QObject *parent) : QObject(parent)
 {
     //Create default priorities - first in the enum gets executed first
     const QMetaEnum metaEnum = QMetaEnum::fromType<ImageProcess::ProcessType>();
