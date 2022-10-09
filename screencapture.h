@@ -6,6 +6,9 @@
 #include <windef.h>
 #endif
 
+using CaptureValue = ReturnValue<QImage>;
+using WindowSizeValue = ReturnValue<ScreenSize>;
+
 class ScreenCapture
 {
     /* Base class for all screen capture types */
@@ -20,13 +23,15 @@ public:
     ScreenSize size() const {return pScreenSize;}
 
     //Main function to start capturing the screen
-    virtual QImage capture() = 0;
+    virtual CaptureValue capture() = 0;
 protected:
 #ifdef Q_OS_WIN
     //Calculate window size
-    ScreenSize getWindowSize(HWND &window);
+    WindowSizeValue getWindowSize(HWND &window);
 #endif
 
     ScreenSize pScreenSize;
+    QImage pFrame;
+    bool pInitialised;
 };
 

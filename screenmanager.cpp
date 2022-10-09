@@ -9,7 +9,7 @@
 #include <QConicalGradient>
 
 //Constructor
-ScreenManager::ScreenManager(int frameRate, QObject *parent) : QObject(parent), pFrameRate(frameRate)
+ScreenManager::ScreenManager(int frameRate, QObject *parent) : QObject(parent), pFrameRate(frameRate), pTestPatternGenerationEnabled(false)
 {
     Q_ASSERT(frameRate > 0);
     pFrameRate = std::clamp(frameRate, 1, 1000); //Just to be safe, clamp the frame rate
@@ -142,11 +142,15 @@ QImage ScreenManager::generateTestPattern()
     QPainter painter(&testImage);
 
     //Generate gradient
-    QConicalGradient gradient;
-    //Red - Green - Blue
-    gradient.setColorAt(0, Qt::red);
-    gradient.setColorAt(0.33, Qt::green);
-    gradient.setColorAt(0.66, Qt::blue);
+    QConicalGradient gradient(QPointF(160,90), 0);
+    //Red - Yellow - Green - Cyan - Blue - Magenta - Red
+    gradient.setColorAt(0.0f / 360.0f, Qt::red);
+    gradient.setColorAt(60.0f / 360.0f, Qt::yellow);
+    gradient.setColorAt(120.0f / 360.0f, Qt::green);
+    gradient.setColorAt(180.0f / 360.0f, Qt::cyan);
+    gradient.setColorAt(240.0f / 360.0f, Qt::blue);
+    gradient.setColorAt(300.0f / 360.0f, Qt::magenta);
+    gradient.setColorAt(360.0f / 360.0f, Qt::red);
 
     //Fill with gradient
     painter.fillRect(testImage.rect(), gradient);

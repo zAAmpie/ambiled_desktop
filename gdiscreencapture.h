@@ -17,10 +17,13 @@ public:
     CaptureMode type() const override {return ScreenCapture::GDIMode;}
 
     //Main function to start capturing the screen
-    QImage capture() override;
+    CaptureValue capture() override;
 private:
     //Creates a bitmap that is sized to the current screen
-    void createBitmap();
+    Error createBitmap();
+
+    //Clean up
+    void cleanup();
 
     HWND pDesktopWnd;
     HDC pDesktopDC;

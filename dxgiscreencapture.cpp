@@ -1,31 +1,30 @@
 #include "dxgiscreencapture.h"
+#include "qdebug.h"
 
 #ifdef Q_OS_WIN
 //Constructor
-DXGIScreenCapture::DXGIScreenCapture() : ScreenCapture()
+DXGIScreenCapture::DXGIScreenCapture() : ScreenCapture(), pHaveFrameLock(false), pD3DDevice(nullptr), pD3DDeviceContext(nullptr), pDeskDupl(nullptr)
 {
-    pD3DDevice = nullptr;
-    pD3DDeviceContext = nullptr;
-    pDeskDupl = nullptr;
-    pHaveFrameLock = false;
     pScreenSize = ScreenSize();
 }
 
 //Destructor
 DXGIScreenCapture::~DXGIScreenCapture()
 {
-    if (pDeskDupl)
-        pDeskDupl->Release();
-    if (pD3DDeviceContext)
-        pD3DDeviceContext->Release();
-    if (pD3DDevice)
-        pD3DDevice->Release();
+    cleanup();
 }
 
 //Main function to start capturing the screen
-QImage DXGIScreenCapture::capture()
+CaptureValue DXGIScreenCapture::capture()
 {
-    createVariables();
+    //Create variables - if necessary
+    QString createError = createVariables();
+    if (createError != NoError)
+        return CaptureValue(createError, pFrame);
+
+    if (!pInitialised)
+        //Not yet initialised - return current image
+        return CaptureValue("DXGIScreenCapture: Not yet initialised", pFrame);
 
     HRESULT hr = S_OK;
 
@@ -43,11 +42,11 @@ QImage DXGIScreenCapture::capture()
     hr = pDeskDupl->AcquireNextFrame(0, &frameInfo, &deskRes);
     if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
         //Timed out, not actual error, return the previous frame
-        return pFrame;
+        return CaptureValue("DXGIScreenCapture: Timed out", pFrame);
     }
-    Q_ASSERT(SUCCEEDED(hr));
+
     if (FAILED(hr))
-        return QImage();
+        return CaptureValue("DXGIScreenCapture: Acquire failed", pFrame);
 
     pHaveFrameLock = true;
 
@@ -56,9 +55,9 @@ QImage DXGIScreenCapture::capture()
     hr = deskRes->QueryInterface(__uuidof(ID3D11Texture2D), (void**)&gpuTex);
     deskRes->Release();
     deskRes = nullptr;
-    Q_ASSERT(SUCCEEDED(hr));
+
     if (FAILED(hr))
-        return QImage();
+        return CaptureValue("DXGIScreenCapture: QueryInterface failed", pFrame);
 
     //Create texture descriptor
     D3D11_TEXTURE2D_DESC desc;
@@ -70,23 +69,26 @@ QImage DXGIScreenCapture::capture()
     desc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
     ID3D11Texture2D* cpuTex = nullptr;
     hr = pD3DDevice->CreateTexture2D(&desc, nullptr, &cpuTex);
-    Q_ASSERT(SUCCEEDED(hr));
+
     if (FAILED(hr))
-        return QImage();
+        return CaptureValue("DXGIScreenCapture: CreateTexture failed", pFrame);
 
     pD3DDeviceContext->CopyResource(cpuTex, gpuTex);
 
     //Map subresource
     D3D11_MAPPED_SUBRESOURCE sr;
     hr = pD3DDeviceContext->Map(cpuTex, 0, D3D11_MAP_READ, 0, &sr);
-    Q_ASSERT(SUCCEEDED(hr));
+
     if (FAILED(hr))
-        return QImage();
+        return CaptureValue("DXGIScreenCapture: Map failed", pFrame);
 
     //Copy data to image
     ScreenSize newSize = ScreenSize(desc.Height, desc.Width);
-    if (newSize != pScreenSize || pFrame.isNull())
+    if (newSize != pScreenSize)
+    {
         pFrame = QImage(newSize.width, newSize.height, QImage::Format_RGBA8888);
+        pScreenSize = newSize;
+    }
     memcpy(pFrame.bits(), sr.pData, pFrame.sizeInBytes());  //TODO: bits() does deep-copy
 
     pD3DDeviceContext->Unmap(cpuTex, 0);
@@ -95,24 +97,18 @@ QImage DXGIScreenCapture::capture()
     cpuTex->Release();
     gpuTex->Release();
 
-    return pFrame;
+    return CaptureValue(pFrame);
 }
 
 //Create variables (typically after screen change)
-void DXGIScreenCapture::createVariables()
+Error DXGIScreenCapture::createVariables()
 {
-    if (pD3DDevice && pD3DDeviceContext && pDeskDupl)
+    if (pD3DDevice && pD3DDeviceContext && pDeskDupl && pInitialised)
         //Everything is still correct
-        return;
+        return NoError;
 
     //Clean up
-    if (pD3DDevice)
-        pD3DDevice->Release();
-    if (pD3DDeviceContext)
-        pD3DDeviceContext->Release();
-    if (pDeskDupl)
-        pDeskDupl->Release();
-    pHaveFrameLock = false;
+    cleanup();
 
     //Driver types supported
     D3D_DRIVER_TYPE driverTypes[] = {
@@ -140,34 +136,30 @@ void DXGIScreenCapture::createVariables()
         if (SUCCEEDED(hr))
             break;
     }
-    Q_ASSERT(SUCCEEDED(hr));
     if (FAILED(hr))
-        return;
+        return Error("DXGIScreenCapture: CreateDevice failed with %1").arg(hr);
 
     //Get DXGI device
     IDXGIDevice* dxgiDevice = nullptr;
     hr = pD3DDevice->QueryInterface(__uuidof(IDXGIDevice), (void**)&dxgiDevice);
-    Q_ASSERT(SUCCEEDED(hr));
     if (FAILED(hr))
-        return;
+        return Error("DXGIScreenCapture: QueryInterface failed with %1").arg(hr);
 
     //Get DXGI adapter
     IDXGIAdapter* dxgiAdapter = nullptr;
     hr = dxgiDevice->GetParent(__uuidof(IDXGIAdapter), (void**)&dxgiAdapter);
     dxgiDevice->Release();
     dxgiDevice = nullptr;
-    Q_ASSERT(SUCCEEDED(hr));
     if (FAILED(hr))
-        return;
+        return Error("DXGIScreenCapture: Could not get DXGI adapter - %1").arg(hr);
 
     //Get output
     IDXGIOutput* dxgiOutput = nullptr;
     hr = dxgiAdapter->EnumOutputs(0, &dxgiOutput);
     dxgiAdapter->Release();
     dxgiAdapter = nullptr;
-    Q_ASSERT(SUCCEEDED(hr));
     if (FAILED(hr))
-        return;
+        return Error("DXGIScreenCapture: Could not enumerate outputs - %1").arg(hr);
 
     //Get DXGI output descriptor
     dxgiOutput->GetDesc(&pOutputDesc);
@@ -177,9 +169,8 @@ void DXGIScreenCapture::createVariables()
     hr = dxgiOutput->QueryInterface(__uuidof(dxgiOutput1), (void**)&dxgiOutput1);
     dxgiOutput->Release();
     dxgiOutput = nullptr;
-    Q_ASSERT(SUCCEEDED(hr));
     if (FAILED(hr))
-        return;
+        return Error("DXGIScreenCapture: QueryInterface1 failed with %1").arg(hr);
 
     //Create desktop duplication
     try
@@ -190,19 +181,39 @@ void DXGIScreenCapture::createVariables()
     {
         dxgiOutput1->Release();
         dxgiOutput1 = nullptr;
-        return;
+        return Error("DXGIScreenCapture: Exception during DuplicateOutput");
     }
     dxgiOutput1->Release();
     dxgiOutput1 = nullptr;
-    Q_ASSERT(SUCCEEDED(hr));
     if (FAILED(hr))
     {
+        qDebug() << HRESULT_CODE(hr);
         if (hr == DXGI_ERROR_NOT_CURRENTLY_AVAILABLE) {
             //Too many desktop recorders active
-            return;
+            return Error("DXGIScreenCapture: Too many desktop recorders active");
         }
-        return;
+        return Error("DXGIScreenCapture: DuplicateOutput failed with %1").arg(hr);
     }
+
+    pInitialised = true;
+    return NoError;
+}
+
+//Clean up variables
+void DXGIScreenCapture::cleanup()
+{
+    if (pDeskDupl)
+        pDeskDupl->Release();
+    if (pD3DDeviceContext)
+        pD3DDeviceContext->Release();
+    if (pD3DDevice)
+        pD3DDevice->Release();
+
+    pDeskDupl = nullptr;
+    pD3DDeviceContext = nullptr;
+    pD3DDevice = nullptr;
+    pInitialised = false;
+    pHaveFrameLock = false;
 }
 
 #endif

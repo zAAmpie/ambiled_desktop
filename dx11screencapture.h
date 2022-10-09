@@ -17,14 +17,17 @@ public:
     CaptureMode type() const override {return ScreenCapture::DirectX11Mode;}
 
     //Main function to start capturing the screen
-    QImage capture() override;
+    CaptureValue capture() override;
 private:
     //Create variables (typically after screen change)
-    void createVariables();
+    Error createVariables();
     //Create the swap chain
-    void createSwapChain();
+    Error createSwapChain();
     //Create the texture
-    void createTexture();
+    Error createTexture();
+
+    //Clean up variables
+    void cleanup();
 
     HWND pDesktopWnd;
 

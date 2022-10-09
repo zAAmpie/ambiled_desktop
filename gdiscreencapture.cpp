@@ -4,61 +4,63 @@
 #include "util.h"
 
 //Constructor
-GDIScreenCapture::GDIScreenCapture() : ScreenCapture()
+GDIScreenCapture::GDIScreenCapture() : ScreenCapture(), pDesktopWnd(nullptr), pDesktopDC(nullptr), pCaptureDC(nullptr), pCaptureBitmap(nullptr)
 {
-    //Construct all GDI variables
-    pDesktopWnd = GetDesktopWindow();
-    pDesktopDC = GetDC(pDesktopWnd);
-    pCaptureDC = CreateCompatibleDC(pDesktopDC);
-
-    pCaptureBitmap = nullptr;
-    createBitmap();
+    pScreenSize = ScreenSize();
 }
 
 //Destructor
 GDIScreenCapture::~GDIScreenCapture()
 {
-    ReleaseDC(pDesktopWnd, pDesktopDC);
-    DeleteDC(pCaptureDC);
-    DeleteObject(pCaptureBitmap);
+    cleanup();
 }
 
 //Main function to start capturing the screen
-QImage GDIScreenCapture::capture()
+CaptureValue GDIScreenCapture::capture()
 {
     //Create or use existing bitmap (in case screen size has changed)
-    createBitmap();
+    Error createError = createBitmap();
+    if (createError != NoError)
+        return CaptureValue(createError, pFrame);
 
-    QImage outputImage = QImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGB32);
+    //QImage outputImage = QImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGB32);
 
     //Capture primary screen
     BitBlt(pCaptureDC, 0, 0, pScreenSize.width, pScreenSize.height, pDesktopDC, 0, 0, SRCCOPY);//|CAPTUREBLT);
 
     //Copy HBITMAP to BYTE array
-    BYTE *data = new BYTE[outputImage.sizeInBytes()];
+    BYTE *data = new BYTE[pScreenSize.totalBytes()];
     GetDIBits(pCaptureDC, pCaptureBitmap, 0, pScreenSize.height, data, &pInfo, DIB_RGB_COLORS);
 
     //Copy vertically flipped data into output image
-    revmemcpy(outputImage.bits(), data, sizeof(data), outputImage.bytesPerLine());  //TODO: bits() does deep-copy
+    revmemcpy(pFrame.bits(), data, pScreenSize.totalBytes(), pScreenSize.bytesPerLine());  //TODO: bits() does deep-copy
+    //memcpy(pBuffer, data, pScreenSize.totalBytes());
     //Clean up
     delete[] data;
 
-    return outputImage;
+    //return QImage(pBuffer, pScreenSize.width, pScreenSize.height, QImage::Format_RGB32);
+    return CaptureValue(pFrame);
 }
 
 //Creates a bitmap that is sized to the current screen
-void GDIScreenCapture::createBitmap()
+Error GDIScreenCapture::createBitmap()
 {
     //Get current desktop size
-    ScreenSize newSize = getWindowSize(pDesktopWnd);
-    Q_ASSERT(newSize.isSet());
+    WindowSizeValue newSize = getWindowSize(pDesktopWnd);
+    if (newSize.error != NoError)
+        return newSize.error;
 
-    if (newSize == pScreenSize && pCaptureBitmap)
+    if (newSize.value == pScreenSize && pCaptureBitmap)
         //Bitmap is still the same size, so it's fine
-        return;
+        return NoError;
+
+    //Reset screen size
+    pScreenSize = newSize.value;
+
+    //Resize buffer
+    pFrame = QImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGB32);
 
     //Create new bitmap
-    pScreenSize = newSize;
     pCaptureBitmap = CreateCompatibleBitmap(pDesktopDC, pScreenSize.width, pScreenSize.height);
     SelectObject(pCaptureDC, pCaptureBitmap);
 
@@ -69,6 +71,22 @@ void GDIScreenCapture::createBitmap()
     pInfo.bmiHeader.biHeight = pScreenSize.height;
     pInfo.bmiHeader.biPlanes = 1;
     pInfo.bmiHeader.biBitCount = 32;
+
+    pInitialised = true;
+    return NoError;
+}
+
+//Clean up
+void GDIScreenCapture::cleanup()
+{
+    ReleaseDC(pDesktopWnd, pDesktopDC);
+    DeleteDC(pCaptureDC);
+    DeleteObject(pCaptureBitmap);
+    pDesktopWnd = nullptr;
+    pDesktopDC = nullptr;
+    pCaptureDC = nullptr;
+    pCaptureBitmap = nullptr;
+    pInitialised = false;
 }
 
 #endif

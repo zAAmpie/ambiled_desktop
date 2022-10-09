@@ -5,7 +5,7 @@
 #endif
 
 //Constructor
-ScreenCapture::ScreenCapture() : pScreenSize(ScreenSize())
+ScreenCapture::ScreenCapture() : pScreenSize(ScreenSize()), pInitialised(false)
 {
 
 }
@@ -19,14 +19,16 @@ ScreenCapture::~ScreenCapture()
 
 #ifdef Q_OS_WIN
 //Calculate window size
-ScreenSize ScreenCapture::getWindowSize(HWND &window)
+WindowSizeValue ScreenCapture::getWindowSize(HWND &window)
 {
     //Get current window size
     RECT rect;
     bool res = GetWindowRect(window, &rect);
-    Q_ASSERT(res);
+    if (!res)
+        return WindowSizeValue("Error getting window size", ScreenSize());
     ScreenSize newSize = ScreenSize(qAbs(rect.bottom - rect.top), qAbs(rect.right - rect.left));
 
-    return newSize;
+    return WindowSizeValue(NoError, newSize);
 }
 #endif
+

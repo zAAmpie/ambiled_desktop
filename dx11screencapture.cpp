@@ -2,14 +2,10 @@
 
 #ifdef Q_OS_WIN
 //Constructor
-DX11ScreenCapture::DX11ScreenCapture() : ScreenCapture()
+DX11ScreenCapture::DX11ScreenCapture() : ScreenCapture(), pDevice11(nullptr), pDeviceContext(nullptr), pSwapChain(nullptr), pBackBuffer(nullptr)
 {
     pDesktopWnd = GetDesktopWindow();
-    pScreenSize = getWindowSize(pDesktopWnd);
-    pBackBuffer = nullptr;
-    pSwapChain = nullptr;
-    pDeviceContext = nullptr;
-    pDevice11 = nullptr;
+    pScreenSize = getWindowSize(pDesktopWnd).value;
 
     createVariables();
 }
@@ -17,21 +13,23 @@ DX11ScreenCapture::DX11ScreenCapture() : ScreenCapture()
 //Destructor
 DX11ScreenCapture::~DX11ScreenCapture()
 {
-    //Clean up all variables
-    pBackBuffer->Release();
-    pSwapChain->Release();
-    pDeviceContext->Release();
-    pDevice11->Release();
+    cleanup();
 }
 
 //Main function to start capturing the screen
-QImage DX11ScreenCapture::capture()
+CaptureValue DX11ScreenCapture::capture()
 {
     //Check if everything is up and running, otherwise recreate
-    createVariables();
+    Error createError = createVariables();
+    if (createError != NoError)
+        return CaptureValue(createError, pFrame);
+
+    if (!pInitialised)
+        //Not yet initialised - return current image
+        return CaptureValue("DX11ScreenCapture: Not yet initialised", pFrame);
 
     //Create new texture to copy to
-    ID3D11Texture2D* pNewTexture = NULL;
+    ID3D11Texture2D* pNewTexture = nullptr;
 
     D3D11_TEXTURE2D_DESC description;
     pBackBuffer->GetDesc( &description );
@@ -41,40 +39,63 @@ QImage DX11ScreenCapture::capture()
     description.Usage = D3D11_USAGE_STAGING;
 
     HRESULT hr = pDevice11->CreateTexture2D( &description, NULL, &pNewTexture );
-    Q_ASSERT(SUCCEEDED(hr));
-    if (!pNewTexture)
-        return QImage();
+    if (FAILED(hr) || !pNewTexture)
+        return CaptureValue("DX11ScreenCapture: Create texture failed", pFrame);
 
     //Copy back buffer into new texture
     pDeviceContext->CopyResource(pNewTexture, pBackBuffer);
 
     D3D11_MAPPED_SUBRESOURCE resource;
     hr = pDeviceContext->Map(pNewTexture, 0/*subresource*/, D3D11_MAP_READ, 0, &resource);
-    Q_ASSERT(SUCCEEDED(hr));
+    if (FAILED(hr))
+        return CaptureValue("DX11ScreenCapture: Texture mapping failed", pFrame);
 
     //Create output image from the CPU available texture
-    QImage outImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGBA8888);
-    memcpy(outImage.bits(), resource.pData, outImage.sizeInBytes()); //TODO: bits() does deep-copy
+    memcpy(pFrame.bits(), resource.pData, pFrame.sizeInBytes()); //TODO: bits() does deep-copy
 
     //Clean up
     pDeviceContext->Unmap(pNewTexture, 0);
 
-    return outImage;
+    return CaptureValue(pFrame);
 }
 
 //Create all the variables (after screen size change)
-void DX11ScreenCapture::createVariables()
+Error DX11ScreenCapture::createVariables()
 {
-    ScreenSize newSize = getWindowSize(pDesktopWnd);
-    if (newSize == pScreenSize && pSwapChain && pBackBuffer)
-        return;
+    //Get current window size
+    WindowSizeValue newSize = getWindowSize(pDesktopWnd);
+    if (newSize.failed())
+        return newSize.error;
 
-    createSwapChain();
-    createTexture();
+    //If everything is still the same, we're still good
+    if (newSize.value == pScreenSize && pInitialised)
+        return NoError;
+
+    //Clean up and start from scratch
+    cleanup();
+
+    //Set new screen size
+    pScreenSize = newSize.value;
+
+    //Create image
+    pFrame = QImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGBA8888);
+
+    //Create swap chain
+    Error er = createSwapChain();
+    if (er != NoError)
+        return er;
+
+    //Create texture
+    er = createTexture();
+    if (er != NoError)
+        return er;
+
+    pInitialised = true;
+    return NoError;
 }
 
 //Create the swap chain
-void DX11ScreenCapture::createSwapChain()
+Error DX11ScreenCapture::createSwapChain()
 {
     //Create swap chain descriptor
     ZeroMemory(&pScDesc, sizeof(DXGI_SWAP_CHAIN_DESC));
@@ -87,33 +108,41 @@ void DX11ScreenCapture::createSwapChain()
     pScDesc.Windowed = true;
     pScDesc.SampleDesc.Count = 1;
 
-    //Release previous swap chain if we're recreating them
-    if (pSwapChain)
-        pSwapChain->Release();
-    if (pDevice11)
-        pDevice11->Release();
-    if (pDeviceContext)
-        pDeviceContext->Release();
-
     //Create swap chain and device
     HRESULT hr = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, NULL, 0, D3D11_SDK_VERSION, &pScDesc, &pSwapChain, &pDevice11, NULL, &pDeviceContext);
-    Q_ASSERT(SUCCEEDED(hr));
+    if (FAILED(hr))
+        return Error("DX11ScreenCapture: SwapChain creation failed with %1").arg(hr);
+    return NoError;
 }
 
 //Create the textures
-void DX11ScreenCapture::createTexture()
+Error DX11ScreenCapture::createTexture()
 {
     Q_ASSERT(pSwapChain);
-    if (!pSwapChain)
-        return;
-
-    //Release previous back buffer if we need to recreate
-    if (pBackBuffer)
-        pBackBuffer->Release();
-
     //Create backbuffer texture
     HRESULT hr = pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&pBackBuffer));
-    Q_ASSERT(SUCCEEDED(hr));
+    if (FAILED(hr))
+        return Error("DX11ScreenCapture: Texture creation failed with %1").arg(hr);
+    return NoError;
+}
+
+void DX11ScreenCapture::cleanup()
+{
+    //Clean up all variables
+    if (pBackBuffer)
+        pBackBuffer->Release();
+    if (pSwapChain)
+        pSwapChain->Release();
+    if (pDeviceContext)
+        pDeviceContext->Release();
+    if (pDevice11)
+        pDevice11->Release();
+
+    pBackBuffer = nullptr;
+    pSwapChain = nullptr;
+    pDeviceContext = nullptr;
+    pDevice11 = nullptr;
+    pInitialised = false;
 }
 
 #endif

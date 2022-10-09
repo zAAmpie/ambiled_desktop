@@ -17,10 +17,13 @@ public:
     CaptureMode type() const override {return ScreenCapture::DirectX9Mode;}
 
     //Main function to start capturing the screen
-    QImage capture() override;
+    CaptureValue capture() override;
 private:
     //Create variables (typically after screen change)
-    void createVariables();
+    Error createVariables();
+
+    //Clean up variables
+    void cleanup();
 
     HWND pDesktopWnd;
 

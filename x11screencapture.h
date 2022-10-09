@@ -24,10 +24,13 @@ public:
     CaptureMode type() const override {return ScreenCapture::X11Mode;}
 
     //Main function to start capturing the screen
-    QImage capture() override;
+    CaptureValue capture() override;
 private:
     //Create the requisite variables
-    void createVariables();
+    Error createVariables();
+
+    //Clean up variables
+    void cleanup();
 
     //Standard X11 variables
     Display* pDisplay;
@@ -40,7 +43,6 @@ private:
     XShmSegmentInfo pShmInfo;
 
     //Other variables
-    bool pInitialized;
     bool pAllocated;
 };
 

@@ -17,13 +17,15 @@ public:
     CaptureMode type() const override {return ScreenCapture::DXGIMode;}
 
     //Main function to start capturing the screen
-    QImage capture() override;
+    CaptureValue capture() override;
 private:
     //Create variables (typically after screen change)
-    void createVariables();
+    Error createVariables();
+
+    //Clean up variables
+    void cleanup();
 
     bool pHaveFrameLock;
-    QImage pFrame;
 
     //DXGI specific variables
     ID3D11Device* pD3DDevice;

@@ -3,28 +3,29 @@
 
 #ifdef Q_OS_WIN
 //Constructor
-DX9ScreenCapture::DX9ScreenCapture() : ScreenCapture()
+DX9ScreenCapture::DX9ScreenCapture() : ScreenCapture(), pD3d(nullptr), pDevice(nullptr), pSurface(nullptr)
 {
     pDesktopWnd = GetDesktopWindow();
-    pScreenSize = getWindowSize(pDesktopWnd);
-    pD3d = nullptr;
-    pDevice = nullptr;
-    pSurface = nullptr;
+    pScreenSize = getWindowSize(pDesktopWnd).value;
 }
 
 //Destructor
 DX9ScreenCapture::~DX9ScreenCapture()
 {
-    pSurface->Release();
-    pDevice->Release();
-    pD3d->Release();
+    cleanup();
 }
 
 //Main function to start capturing the screen
-QImage DX9ScreenCapture::capture()
+CaptureValue DX9ScreenCapture::capture()
 {
-    //Check if everything is still good, otherwise recreate
-    createVariables();
+    //Check if everything is up and running, otherwise recreate
+    Error createError = createVariables();
+    if (createError != NoError)
+        return CaptureValue(createError, pFrame);
+
+    if (!pInitialised)
+        //Not yet initialised - return current image
+        return CaptureValue("DX9ScreenCapture: Not yet initialised", pFrame);
 
     //Copy front buffer to surface
     pDevice->GetFrontBufferData(0, pSurface);
@@ -32,44 +33,43 @@ QImage DX9ScreenCapture::capture()
     //Lock front buffer
     D3DLOCKED_RECT lockedRect;
     HRESULT hr = pSurface->LockRect(&lockedRect, NULL, D3DLOCK_NO_DIRTY_UPDATE | D3DLOCK_NOSYSLOCK | D3DLOCK_READONLY);
-    Q_ASSERT(SUCCEEDED(hr));
     if (FAILED(hr))
-        return QImage();
-
-    //Create output image
-    QImage outImage = QImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGB32);
+        return CaptureValue("DX9ScreenCapture: Could not lock front buffer", pFrame);
 
     //Copy locked rectangle to byte array (flip vertically)
-    revmemcpy(outImage.bits(), lockedRect.pBits, outImage.sizeInBytes(), outImage.bytesPerLine());  //TODO: bits() does deep-copy
+    revmemcpy(pFrame.bits(), lockedRect.pBits, pFrame.sizeInBytes(), pFrame.bytesPerLine());  //TODO: bits() does deep-copy
 
     //Unlock rect
     pSurface->UnlockRect();
 
-    return outImage;
+    return CaptureValue(pFrame);
 }
 
 //Create variables (typically after screen change)
-void DX9ScreenCapture::createVariables()
+Error DX9ScreenCapture::createVariables()
 {
-    //Check if screen size has changed
-    ScreenSize newSize = getWindowSize(pDesktopWnd);
-    if (newSize == pScreenSize && pD3d && pDevice && pSurface)
-        //All still good, nothing to create
-        return;
+    //Get current window size
+    WindowSizeValue newSize = getWindowSize(pDesktopWnd);
+    if (newSize.failed())
+        return newSize.error;
 
-    //Release previously created objects if necessary
-    if (pD3d)
-        pD3d->Release();
-    if (pDevice)
-        pDevice->Release();
-    if (pSurface)
-        pSurface->Release();
+    //If everything is still the same, we're still good
+    if (newSize.value == pScreenSize && pInitialised)
+        return NoError;
+
+    //Clean up previous variables
+    cleanup();
+
+    //Set new screen size
+    pScreenSize = newSize.value;
+
+    //Create image
+    pFrame = QImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGBA8888);
 
     //Create D3D device object
     pD3d = Direct3DCreate9(D3D_SDK_VERSION);
-    Q_ASSERT(pD3d);
     if (!pD3d)
-        return;
+        return Error("DX9ScreenCapture: Could not create Direct3D device");
 
     //Create D3D descriptor
     D3DPRESENT_PARAMETERS d3dpp;
@@ -87,15 +87,32 @@ void DX9ScreenCapture::createVariables()
 
     //Create/initalize device
     HRESULT hr = pD3d->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, pDesktopWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING, &d3dpp, &pDevice);
-    Q_ASSERT(SUCCEEDED(hr));
     if (FAILED(hr))
-        return;
+        return Error("DX9ScreenCapture: Could not create DirectX9 device - %1").arg(hr);
 
     //Create offscreen surface
     hr = pDevice->CreateOffscreenPlainSurface(pScreenSize.width, pScreenSize.height, D3DFMT_A8R8G8B8, D3DPOOL_SCRATCH, &pSurface, NULL);
-    Q_ASSERT(SUCCEEDED(hr));
     if (FAILED(hr))
-        return;
+        return Error("DX9ScreenCapture: Could not create offscreen surface - %1").arg(hr);
+
+    pInitialised = true;
+    return NoError;
+}
+
+//Clean up variables
+void DX9ScreenCapture::cleanup()
+{
+    if (pSurface)
+        pSurface->Release();
+    if (pDevice)
+        pDevice->Release();
+    if (pD3d)
+        pD3d->Release();
+
+    pSurface = nullptr;
+    pDevice = nullptr;
+    pD3d = nullptr;
+    pInitialised = false;
 }
 
 #endif
