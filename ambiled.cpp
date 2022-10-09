@@ -9,6 +9,7 @@ AmbiLED::AmbiLED(QWidget *parent)
       pFrameCounter(0),
       pSerialBytesWritten(0),
       pNotificationShown(false),
+      pSerialPortReady(false),
       pCaptureIdleMode(false)
 {
     //Register metatypes to use in signal/slot system
@@ -45,8 +46,8 @@ AmbiLED::AmbiLED(QWidget *parent)
     //Create LED object
     pLeds = std::unique_ptr<LEDS>(new LEDS());
 
-	//Create screen capture object
-    pScreenManager = new ScreenManager(ui.refreshRateComboBox->currentData().toInt(), this);
+    //Create screen manager object
+    pScreenManager = new ScreenManager(ui.refreshRateComboBox->currentData().toInt());
     connect(pScreenManager, &ScreenManager::readyFrame, this, &AmbiLED::screenManagerReadyFrame);
     connect(pScreenManager, &ScreenManager::failed, this, &AmbiLED::screenManagerFailed);
 
@@ -54,6 +55,12 @@ AmbiLED::AmbiLED(QWidget *parent)
     pCaptureThread = new ExecThread();
     pScreenManager->moveToThread(pCaptureThread);
     pCaptureThread->start();
+
+    //Create process manager object
+    pProcessManager = new ProcessManager();
+    connect(pProcessManager, &ProcessManager::readyProcess, this, &AmbiLED::processManagerReadyProcess);
+    connect(pProcessManager, &ProcessManager::failed, this, &AmbiLED::processManagerFailed);
+    connect(this, &AmbiLED::processManagerStartProcess, pProcessManager, &ProcessManager::startProcess);
 
 	//Create elapsed timer for FPS
     pElapsedFrameTimer = new QElapsedTimer();
@@ -114,17 +121,17 @@ void AmbiLED::setupGUI()
     connect(ui.comPortComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiSerialPortChanged);
 
     //Enumerate refresh rate options
-    ui.refreshRateComboBox->addItem(tr("Maximum"), 1);
-    ui.refreshRateComboBox->addItem(tr("60 Hz"), 16);
-    ui.refreshRateComboBox->addItem(tr("50 Hz"), 20);
-    ui.refreshRateComboBox->addItem(tr("30 Hz"), 33);
-    ui.refreshRateComboBox->addItem(tr("25 Hz"), 40);
-    ui.refreshRateComboBox->addItem(tr("24 Hz"), 42);
-    ui.refreshRateComboBox->addItem(tr("20 Hz"), 50);
-    ui.refreshRateComboBox->addItem(tr("15 Hz"), 67);
-    ui.refreshRateComboBox->addItem(tr("10 Hz"), 100);
-    ui.refreshRateComboBox->addItem(tr("5 Hz"), 200);
-    ui.refreshRateComboBox->addItem(tr("1 Hz"), 1000);
+    ui.refreshRateComboBox->addItem(tr("Maximum"), 100);
+    ui.refreshRateComboBox->addItem(tr("60 Hz"), 60);
+    ui.refreshRateComboBox->addItem(tr("50 Hz"), 50);
+    ui.refreshRateComboBox->addItem(tr("30 Hz"), 30);
+    ui.refreshRateComboBox->addItem(tr("25 Hz"), 25);
+    ui.refreshRateComboBox->addItem(tr("24 Hz"), 24);
+    ui.refreshRateComboBox->addItem(tr("20 Hz"), 20);
+    ui.refreshRateComboBox->addItem(tr("15 Hz"), 15);
+    ui.refreshRateComboBox->addItem(tr("10 Hz"), 10);
+    ui.refreshRateComboBox->addItem(tr("5 Hz"), 5);
+    ui.refreshRateComboBox->addItem(tr("1 Hz"), 1);
     ui.refreshRateComboBox->setCurrentIndex(2);
     connect(ui.refreshRateComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiRefreshRateChanged);
 
