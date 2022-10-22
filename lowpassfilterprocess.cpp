@@ -12,13 +12,14 @@ LowPassFilterProcess::LowPassFilterProcess(int filterCutoff, int historyMax) : I
     pHistoryMax = qMax(1, historyMax);
 
     //Start delta timer for the first run
+    pDeltaTimer = new QElapsedTimer();
     pDeltaTimer->start();
 }
 
 //Destructor
 LowPassFilterProcess::~LowPassFilterProcess()
 {
-
+    delete pDeltaTimer;
 }
 
 //Process the input image and return a filtered output
