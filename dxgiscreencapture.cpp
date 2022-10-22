@@ -1,4 +1,5 @@
 #include "dxgiscreencapture.h"
+#include <QDebug>
 
 #ifdef Q_OS_WIN
 //Constructor
@@ -41,8 +42,8 @@ CaptureValue DXGIScreenCapture::capture()
     hr = pDeskDupl->AcquireNextFrame(0, &frameInfo, &deskRes);
     if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
         //Timed out, not actual error, return the previous frame
-        //return CaptureValue("DXGIScreenCapture: Timed out", pFrame);
-        return pFrame;
+        return CaptureValue("DXGIScreenCapture: Timed out", pFrame);
+        //return pFrame;
     }
 
     if (FAILED(hr))
@@ -66,7 +67,7 @@ CaptureValue DXGIScreenCapture::capture()
     desc.Usage = D3D11_USAGE_STAGING;
     desc.BindFlags = 0;
     desc.MiscFlags = 0; // D3D11_RESOURCE_MISC_GDI_COMPATIBLE ?
-    desc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
+    //desc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
     ID3D11Texture2D* cpuTex = nullptr;
     hr = pD3DDevice->CreateTexture2D(&desc, nullptr, &cpuTex);
 
@@ -86,14 +87,11 @@ CaptureValue DXGIScreenCapture::capture()
     ScreenSize newSize = ScreenSize(desc.Height, desc.Width);
     if (newSize != pScreenSize)
     {
-        pFrame = QImage(newSize.width, newSize.height, QImage::Format_RGBA8888);
+        pFrame = QImage(newSize.width, newSize.height, QImage::Format_RGB32);
         pScreenSize = newSize;
     }
     for (int h = 0; h < pScreenSize.height; h++)
       memcpy(pFrame.bits() + h * pScreenSize.bytesPerLine(), (BYTE*)(sr.pData) + h * sr.RowPitch, pScreenSize.bytesPerLine());
-
-    //memcpy(pFrame.bits(), sr.pData, pScreenSize.totalBytes());  //TODO: bits() does deep-copy
-    //return CaptureValue(Error("Testing (%1, %2, %3, %4)").arg(*(BYTE*)sr.pData).arg(*((BYTE*)sr.pData+1)).arg(*((BYTE*)sr.pData+2)).arg(*((BYTE*)sr.pData+3)), pFrame);
 
     pD3DDeviceContext->Unmap(cpuTex, 0);
 
