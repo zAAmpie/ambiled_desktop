@@ -37,8 +37,8 @@ struct ScreenSize
     bool isSet() const {return height > 0 || width > 0;}
 
     //Get sizes of a screen in bytes
-    long long totalBytes() const {return height * width * depth;}
-    long long bytesPerLine() const {return width * depth;}
+    long long totalBytes() const {return (long long)height * width * depth;}
+    long long bytesPerLine() const {return (long long)width * depth;}
 
     bool operator==(ScreenSize &rhs) {return height == rhs.height && width == rhs.width && depth == rhs.depth;}
     bool operator!=(ScreenSize &rhs) {return !operator==(rhs);}
