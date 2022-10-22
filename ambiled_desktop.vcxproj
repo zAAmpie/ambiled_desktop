@@ -1,0 +1,177 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{DBAAE624-C87A-48BF-8199-2D4DE12EA265}</ProjectGuid>
+    <Keyword>QtVS_v304</Keyword>
+    <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">10.0.22000.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">10.0.22000.0</WindowsTargetPlatformVersion>
+    <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')">$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <UseDebugLibraries>true</UseDebugLibraries>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Condition="Exists('$(QtMsBuild)\qt_defaults.props')">
+    <Import Project="$(QtMsBuild)\qt_defaults.props" />
+  </ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
+    <QtInstall>6.4.0_msvc2019_64</QtInstall>
+    <QtBuildConfig>debug</QtBuildConfig>
+    <QtModules>core;gui;widgets;serialport</QtModules>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
+    <QtInstall>6.4.0_msvc2019_64</QtInstall>
+    <QtBuildConfig>release</QtBuildConfig>
+    <QtModules>core;gui;widgets;serialport</QtModules>
+    <QtDeploy>true</QtDeploy>
+  </PropertyGroup>
+  <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
+    <Message Importance="High" Text="QtMsBuild: could not locate qt.targets, qt.props; project may not build correctly." />
+  </Target>
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(QtMsBuild)\Qt.props" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(QtMsBuild)\Qt.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Link>
+      <AdditionalDependencies>d3d11.lib;d3d9.lib;gdi32.lib;windowscodecs.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Link>
+      <AdditionalDependencies>d3d11.lib;d3d9.lib;gdi32.lib;windowscodecs.lib;ole32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
+    <ClCompile>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <Optimization>Disabled</Optimization>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="Configuration">
+    <ClCompile>
+      <TreatWChar_tAsBuiltInType>true</TreatWChar_tAsBuiltInType>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <DebugInformationFormat>None</DebugInformationFormat>
+      <Optimization>MaxSpeed</Optimization>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <Image Include="Resources\computer.ico" />
+    <Image Include="Resources\monitor_icon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".gitignore" />
+    <None Include="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="ambiled.cpp" />
+    <ClCompile Include="blackbarprocess.cpp" />
+    <ClCompile Include="blockstriptransform.cpp" />
+    <ClCompile Include="blocktransform.cpp" />
+    <ClCompile Include="dx11screencapture.cpp" />
+    <ClCompile Include="dx9screencapture.cpp" />
+    <ClCompile Include="dxgiscreencapture.cpp" />
+    <ClCompile Include="execthread.cpp" />
+    <ClCompile Include="gdiscreencapture.cpp" />
+    <ClCompile Include="imageprocess.cpp" />
+    <ClCompile Include="imagetransform.cpp" />
+    <ClCompile Include="leds.cpp" />
+    <ClCompile Include="lowpassfilterprocess.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="pixmaputils.cpp" />
+    <ClCompile Include="processmanager.cpp" />
+    <ClCompile Include="scaleprocess.cpp" />
+    <ClCompile Include="screencapture.cpp" />
+    <ClCompile Include="screenmanager.cpp" />
+    <ClCompile Include="serialmanager.cpp" />
+    <ClCompile Include="simpletransform.cpp" />
+    <ClCompile Include="striptransform.cpp" />
+    <ClCompile Include="util.cpp" />
+    <ClCompile Include="x11screencapture.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="ambiled.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtRcc Include="ambiled.qrc" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtUic Include="ambiled.ui" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="blackbarprocess.h" />
+    <ClInclude Include="blockstriptransform.h" />
+    <ClInclude Include="blocktransform.h" />
+    <ClInclude Include="dx11screencapture.h" />
+    <ClInclude Include="dx9screencapture.h" />
+    <ClInclude Include="dxgiscreencapture.h" />
+    <ClInclude Include="gdiscreencapture.h" />
+    <ClInclude Include="imagetransform.h" />
+    <ClInclude Include="leds.h" />
+    <ClInclude Include="lowpassfilterprocess.h" />
+    <ClInclude Include="pixmaputils.h" />
+    <ClInclude Include="scaleprocess.h" />
+    <ClInclude Include="screencapture.h" />
+    <ClInclude Include="simpletransform.h" />
+    <ClInclude Include="striptransform.h" />
+    <ClInclude Include="types.h" />
+    <ClInclude Include="util.h" />
+    <ClInclude Include="version.h" />
+    <ClInclude Include="x11screencapture.h" />
+    <QtMoc Include="serialmanager.h" />
+    <QtMoc Include="screenmanager.h" />
+    <QtMoc Include="processmanager.h" />
+    <QtMoc Include="imageprocess.h" />
+    <QtMoc Include="execthread.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="LICENCE.txt" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
+    <Import Project="$(QtMsBuild)\qt.targets" />
+  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
