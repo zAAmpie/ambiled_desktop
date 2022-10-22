@@ -376,7 +376,7 @@ void AmbiLED::serialManagerLuxValueChanged()
 
 //===== UI SLOTS FOR SIGNALS =====
 //Clicked on system tray
-void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
+//void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
 
 //Toggle screen capture
 void AmbiLED::uiScreenCaptureToggled()
