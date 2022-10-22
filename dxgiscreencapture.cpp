@@ -42,8 +42,8 @@ CaptureValue DXGIScreenCapture::capture()
     hr = pDeskDupl->AcquireNextFrame(0, &frameInfo, &deskRes);
     if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
         //Timed out, not actual error, return the previous frame
-        return CaptureValue("DXGIScreenCapture: Timed out", pFrame);
-        //return pFrame;
+        //return CaptureValue("DXGIScreenCapture: Timed out", pFrame);
+        return pFrame;
     }
 
     if (FAILED(hr))
