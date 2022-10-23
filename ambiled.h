@@ -95,6 +95,8 @@ private:
     void serialManagerDeviceStatusChanged(bool active);
     //Lux value has changed
     void serialManagerLuxValueChanged();
+    //Serial port failure (error message)
+    void serialManagerFailed(QString message);
 
     //===== UI SLOTS FOR SIGNALS =====
     //Toggle screen capture

@@ -19,21 +19,21 @@ AmbiLED::AmbiLED(QWidget *parent)
     //Create map of enum
     createSettingsMap();
 	//Create new settings object
-	pSettings = new QSettings("zAAm", "AmbiLED");
+	pSettings = new QSettings("AmbiLED", "AmbiLED");
 
     //Set up initial UI
     setupGUI();
 
     //Set up serial port options
+    pSerialManager = new SerialManager();
     serialManagerDeviceStatusChanged(false);
 	foreach (QSerialPortInfo info, QSerialPortInfo::availablePorts())
 	{
 		ui.comPortComboBox->addItem(info.portName().isEmpty() ? info.description() : info.portName());
 	}
     ui.comPortComboBox->setCurrentIndex(0);
-
+    
 	//Create serial port object
-    pSerialManager = new SerialManager(ui.comPortComboBox->currentText());
     connect(this, &AmbiLED::serialManagerWriteLEDImage, pSerialManager, &SerialManager::writeLEDImage);
     connect(pSerialManager, &SerialManager::readyForTransmit, this, &AmbiLED::serialManagerReadyForTransmit);
     connect(pSerialManager, &SerialManager::serialDataRead, this, &AmbiLED::serialManagerSerialDataRead);
@@ -139,7 +139,7 @@ void AmbiLED::setupGUI()
     ui.refreshRateComboBox->addItem(tr("10 Hz"), 10);
     ui.refreshRateComboBox->addItem(tr("5 Hz"), 5);
     ui.refreshRateComboBox->addItem(tr("1 Hz"), 1);
-    ui.refreshRateComboBox->setCurrentIndex(2);
+    ui.refreshRateComboBox->setCurrentIndex(3);
     connect(ui.refreshRateComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiRefreshRateChanged);
 
     //Set up capture mode
@@ -150,7 +150,7 @@ void AmbiLED::setupGUI()
 #ifdef Q_OS_UNIX
     ui.captureComboBox->addItem(tr("X11"), ScreenCapture::X11Mode);
 #endif
-    ui.captureComboBox->setCurrentIndex(0);
+    ui.captureComboBox->setCurrentIndex(1);
     connect(ui.captureComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiCaptureModeChanged);
 
     //Set up brightness slider
@@ -372,6 +372,12 @@ void AmbiLED::serialManagerDeviceStatusChanged(bool status)
 void AmbiLED::serialManagerLuxValueChanged()
 {
     ui.brightnessSlider->setValue(pLeds->transformLuxToBrightness(pSerialManager->getLux()));
+}
+
+//Serial port failure (error message)
+void AmbiLED::serialManagerFailed(QString message)
+{
+    ui.debugLabel->setText(message);
 }
 
 //===== UI SLOTS FOR SIGNALS =====
@@ -656,6 +662,7 @@ void AmbiLED::displayFullScreen(QImage image)
 
     //Create pixmap and set the label to it
     QPixmap screen = QPixmap::fromImage(image.scaled(ui.screenLabel->width(), ui.screenLabel->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    PixmapUtils::drawOffsetLines(screen, Qt::red);
     ui.screenLabel->setPixmap(screen);
 }
 
