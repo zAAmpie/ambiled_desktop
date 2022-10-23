@@ -19,7 +19,7 @@ QImage StripTransform::averageStrip(const QImage &input, ImageSize size, StripPl
 {
     bool isHorizontalStrip = placement == TopStrip || placement == BottomStrip;
     //"Width" is used in the general sense of the smaller of two lengths of a rectangle
-    int stripWidthPx = isHorizontalStrip ? qCeil(static_cast<float>(input.width()) * pStripWidthPercentage) : qCeil(static_cast<float>(input.height()) * pStripWidthPercentage);
+    int stripWidthPx = isHorizontalStrip ? qCeil(static_cast<float>(input.height()) * pStripWidthPercentage) : qCeil(static_cast<float>(input.width()) * pStripWidthPercentage);
 
     //Grab a strip from the placement side of the screen
     QImage output = copyStrip(input, stripWidthPx, placement);
