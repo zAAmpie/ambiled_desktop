@@ -36,6 +36,7 @@ class SerialManager : public QObject
 
 public:
     SerialManager(QString portName, QObject *parent = nullptr);
+    SerialManager(QObject* parent = nullptr); //Unspecified port constructor
     ~SerialManager();
 
     //Get the serial port name
@@ -69,8 +70,12 @@ signals:
     void deviceStatusChanged(bool active);
     //Lux value has changed
     void luxValueChanged();
+    //Failure
+    void failed(QString message);
 
 private:
+    void initialise(QString portName);
+
     //===== SLOTS FOR SERIALPORT =====
     //Bytes are ready to be read from serial port
     void serialPortReadyRead();
