@@ -47,7 +47,10 @@ CaptureValue DXGIScreenCapture::capture()
     }
 
     if (FAILED(hr))
+    {
+        pInitialised = false;
         return CaptureValue(Error("DXGIScreenCapture: Acquire failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
+    }
 
     pHaveFrameLock = true;
 
@@ -58,7 +61,10 @@ CaptureValue DXGIScreenCapture::capture()
     deskRes = nullptr;
 
     if (FAILED(hr))
+    {
+        pInitialised = false;
         return CaptureValue(Error("DXGIScreenCapture: QueryInterface failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
+    }
 
     //Create texture descriptor
     D3D11_TEXTURE2D_DESC desc;
@@ -72,7 +78,10 @@ CaptureValue DXGIScreenCapture::capture()
     hr = pD3DDevice->CreateTexture2D(&desc, nullptr, &cpuTex);
 
     if (FAILED(hr))
+    {
+        pInitialised = false;
         return CaptureValue(Error("DXGIScreenCapture: CreateTexture failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
+    }
 
     pD3DDeviceContext->CopyResource(cpuTex, gpuTex);
 
@@ -81,7 +90,10 @@ CaptureValue DXGIScreenCapture::capture()
     hr = pD3DDeviceContext->Map(cpuTex, 0, D3D11_MAP_READ, 0, &sr);
 
     if (FAILED(hr))
+    {
+        pInitialised = false;
         return CaptureValue(Error("DXGIScreenCapture: Map failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
+    }
 
     //Copy data to image
     ScreenSize newSize = ScreenSize(desc.Height, desc.Width);
