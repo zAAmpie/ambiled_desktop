@@ -34,6 +34,7 @@ public:
         VisualiseSetting,
         CaptureMethodSetting,
         AveragingMethodSetting,
+        ProcessingSetting,
         ColourCorrectionPresetSetting,
         ColourCorrectionRedSetting,
         ColourCorrectionGreenSetting,

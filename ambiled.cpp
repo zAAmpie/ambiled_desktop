@@ -64,10 +64,13 @@ AmbiLED::AmbiLED(QWidget *parent)
     connect(pProcessManager, &ProcessManager::failed, this, &AmbiLED::processManagerFailed);
     connect(this, &AmbiLED::processManagerStartProcess, pProcessManager, &ProcessManager::startProcess);
     uiAverageMethodComboChanged(ui.averageMethodComboBox->currentIndex());
+    //TODO: Set this using proper settings
+    pProcessManager->setEnabledProcess(ImageProcess::BlackBarRemoval, true); //Set black bar removal by default
 
-    //pProcessThread = new ExecThread();
-    //pProcessManager->moveToThread(pProcessThread);
-    //pProcessThread->start();
+    //Try moving process manager to another thread
+    pProcessThread = new ExecThread();
+    pProcessManager->moveToThread(pProcessThread);
+    pProcessThread->start();
 
 	//Create elapsed timer for FPS
     pElapsedFrameTimer = new QElapsedTimer();
@@ -209,6 +212,7 @@ void AmbiLED::setupGUI()
     QListWidgetItem *blackBarWidget = new QListWidgetItem(tr("Remove black bars"));
     blackBarWidget->setData(Qt::UserRole, ImageProcess::BlackBarRemoval);
     ui.processingList->addItem(blackBarWidget);
+    blackBarWidget->setSelected(true);
     connect(ui.processingList, &QListWidget::itemSelectionChanged, this, &AmbiLED::uiProcessListSelectionChanged);
 
     //Set up LED positions
@@ -266,6 +270,7 @@ void AmbiLED::readSettings()
         ui.captureComboBox->setCurrentText(pSettings->value(pSettingsMap.value(CaptureMethodSetting)).toString());
     if (pSettings->contains(pSettingsMap.value(AveragingMethodSetting)))
         ui.averageMethodComboBox->setCurrentText(pSettings->value(pSettingsMap.value(AveragingMethodSetting)).toString());
+
     if (pSettings->contains(pSettingsMap.value(ColourCorrectionPresetSetting)))
         ui.colourTemperatureComboBox->setCurrentText(pSettings->value(pSettingsMap.value(ColourCorrectionPresetSetting)).toString());
     if (pSettings->contains(pSettingsMap.value(ColourCorrectionRedSetting)))
@@ -530,8 +535,8 @@ void AmbiLED::uiTrayClicked(QSystemTrayIcon::ActivationReason reason)
     //If you click or double click the system tray icon, show the configuration screen
     if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
     {
-        this->setWindowState(this->windowState() & (~Qt::WindowMinimized | Qt::WindowActive));
         this->show();
+        this->setWindowState(this->windowState() & (~Qt::WindowMinimized | Qt::WindowActive));
     }
 }
 
