@@ -46,13 +46,16 @@ int BlackBarProcess::getFirstNonBlackLine(const QImage image)
     //TODO: Support for 10-bit colour etc.
     int depth = image.depth() >> 3; //Divide by 8 to get bytes - assume 8-bit colour
     int scanLinePitch = image.width() * depth;
+    //We will be averaging over alpha channels, so one of the pixels will be 255
+    //E.g. (0,0,0,255) will average out to 64.
+    //If we have threshold of 5, we want to trigger on anything over (5,5,5,255)
     int blackThreshold = pValueThreshold * scanLinePitch;
     int sum;
 
     //Determine which layer is the alpha
-    int skipAlphaIndex = 0;
-    if (image.pixelFormat().alphaPosition() == QPixelFormat::AtEnd)
-        skipAlphaIndex = depth - 1;
+    //int skipAlphaIndex = 0;
+    //if (image.pixelFormat().alphaPosition() == QPixelFormat::AtEnd)
+    //    skipAlphaIndex = depth - 1;
 
     do
     {
@@ -63,11 +66,15 @@ int BlackBarProcess::getFirstNonBlackLine(const QImage image)
         //Advance pointer in increments of depth until end of data
         for (int ptrOffset = 0; ptrOffset < scanLinePitch; ptrOffset += depth)
         {
+            sum -= 255;
             //Sum value of RGB for each pixel
             for (int colour = 0; colour < depth; ++colour)
             {
-                if (colour == skipAlphaIndex)
+                /*if (colour == skipAlphaIndex)
+                {
+                    line++;
                     continue;
+                }*/
                 sum += *line++;
             }
         }
@@ -83,28 +90,34 @@ int BlackBarProcess::getLastNonBlackLine(const QImage image)
     //TODO: Support for 10-bit colour
     int depth = image.depth() >> 3; //Divide by 8 to get bytes - assume 8-bit colour
     int scanLinePitch = image.width() * depth;
+    //We will be averaging over alpha channels, so one of the pixels will be 255
+    //E.g. (0,0,0,255) will average out to 64.
     int blackThreshold = pValueThreshold * scanLinePitch;
     int sum;
 
     //Determine which layer is the alpha
-    int skipAlphaIndex = 0;
-    if (image.pixelFormat().alphaPosition() == QPixelFormat::AtEnd)
-        skipAlphaIndex = depth - 1;
+    //int skipAlphaIndex = 0;
+    //if (image.pixelFormat().alphaPosition() == QPixelFormat::AtEnd)
+    //    skipAlphaIndex = depth - 1;
 
     do
     {
-        sum = 0;
+        sum = -255;
         //Get pointer to first scanline
         const BYTE *line = image.constScanLine(idxLine--);
 
         //Advance pointer in increments of depth until end of data
         for (int ptrOffset = 0; ptrOffset < scanLinePitch; ptrOffset += depth)
         {
+            sum -= 255;
             //Sum value of RGB for each pixel
             for (int colour = 0; colour < depth; ++colour)
             {
-                if (colour == skipAlphaIndex)
+                /*if (colour == skipAlphaIndex)
+                {
+                    line++;
                     continue;
+                }*/
                 sum += *line++;
             }
         }
