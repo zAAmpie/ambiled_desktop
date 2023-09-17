@@ -104,13 +104,9 @@ CaptureValue DXGIScreenCapture::capture()
     }
     for (int h = 0; h < pScreenSize.height; h++)
       memcpy(pFrame.bits() + h * pScreenSize.bytesPerLine(), (BYTE*)(sr.pData) + h * sr.RowPitch, pScreenSize.bytesPerLine());
-        
 
-//    memcpy(pFrame.bits(), sr.pData, pScreenSize.totalBytes());  //TODO: bits() does deep-copy
-//    return CaptureValue(Error("Testing (%1, %2, %3, %4)").arg(*(BYTE*)sr.pData).arg(*((BYTE*)sr.pData+1)).arg(*((BYTE*)sr.pData+2)).arg(*((BYTE*)sr.pData+3)), pFrame);
-//    qDebug() << pFrame.bits() << QString::fromRawData((QChar *)pFrame.bits(), 20);
-//    qDebug() << sr.pData << QString::fromRawData((QChar *)sr.pData, 20);
-//    qDebug() << (QByteArray::fromRawData((char *)pFrame.constBits(), pFrame.sizeInBytes()) == QByteArray::fromRawData((char *)sr.pData, pFrame.sizeInBytes()));
+    //memcpy(pFrame.bits(), sr.pData, pScreenSize.totalBytes());  //TODO: bits() does deep-copy
+    //return CaptureValue(Error("Testing (%1, %2, %3, %4)").arg(*(BYTE*)sr.pData).arg(*((BYTE*)sr.pData+1)).arg(*((BYTE*)sr.pData+2)).arg(*((BYTE*)sr.pData+3)), pFrame);
 
     pD3DDeviceContext->Unmap(cpuTex, 0);
 

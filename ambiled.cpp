@@ -19,21 +19,21 @@ AmbiLED::AmbiLED(QWidget *parent)
     //Create map of enum
     createSettingsMap();
 	//Create new settings object
-	pSettings = new QSettings("zAAm", "AmbiLED");
+	pSettings = new QSettings("AmbiLED", "AmbiLED");
 
     //Set up initial UI
     setupGUI();
 
     //Set up serial port options
+    pSerialManager = new SerialManager();
     serialManagerDeviceStatusChanged(false);
 	foreach (QSerialPortInfo info, QSerialPortInfo::availablePorts())
 	{
 		ui.comPortComboBox->addItem(info.portName().isEmpty() ? info.description() : info.portName());
 	}
     ui.comPortComboBox->setCurrentIndex(0);
-
+    
 	//Create serial port object
-    pSerialManager = new SerialManager(ui.comPortComboBox->currentText());
     connect(this, &AmbiLED::serialManagerWriteLEDImage, pSerialManager, &SerialManager::writeLEDImage);
     connect(pSerialManager, &SerialManager::readyForTransmit, this, &AmbiLED::serialManagerReadyForTransmit);
     connect(pSerialManager, &SerialManager::serialDataRead, this, &AmbiLED::serialManagerSerialDataRead);
@@ -64,10 +64,13 @@ AmbiLED::AmbiLED(QWidget *parent)
     connect(pProcessManager, &ProcessManager::failed, this, &AmbiLED::processManagerFailed);
     connect(this, &AmbiLED::processManagerStartProcess, pProcessManager, &ProcessManager::startProcess);
     uiAverageMethodComboChanged(ui.averageMethodComboBox->currentIndex());
+    //TODO: Set this using proper settings
+    pProcessManager->setEnabledProcess(ImageProcess::BlackBarRemoval, true); //Set black bar removal by default
 
-    //pProcessThread = new ExecThread();
-    //pProcessManager->moveToThread(pProcessThread);
-    //pProcessThread->start();
+    //Try moving process manager to another thread
+    pProcessThread = new ExecThread();
+    pProcessManager->moveToThread(pProcessThread);
+    pProcessThread->start();
 
 	//Create elapsed timer for FPS
     pElapsedFrameTimer = new QElapsedTimer();
@@ -139,7 +142,7 @@ void AmbiLED::setupGUI()
     ui.refreshRateComboBox->addItem(tr("10 Hz"), 10);
     ui.refreshRateComboBox->addItem(tr("5 Hz"), 5);
     ui.refreshRateComboBox->addItem(tr("1 Hz"), 1);
-    ui.refreshRateComboBox->setCurrentIndex(2);
+    ui.refreshRateComboBox->setCurrentIndex(3);
     connect(ui.refreshRateComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiRefreshRateChanged);
 
     //Set up capture mode
@@ -150,7 +153,7 @@ void AmbiLED::setupGUI()
 #ifdef Q_OS_UNIX
     ui.captureComboBox->addItem(tr("X11"), ScreenCapture::X11Mode);
 #endif
-    ui.captureComboBox->setCurrentIndex(0);
+    ui.captureComboBox->setCurrentIndex(1);
     connect(ui.captureComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiCaptureModeChanged);
 
     //Set up brightness slider
@@ -209,6 +212,7 @@ void AmbiLED::setupGUI()
     QListWidgetItem *blackBarWidget = new QListWidgetItem(tr("Remove black bars"));
     blackBarWidget->setData(Qt::UserRole, ImageProcess::BlackBarRemoval);
     ui.processingList->addItem(blackBarWidget);
+    blackBarWidget->setSelected(true);
     connect(ui.processingList, &QListWidget::itemSelectionChanged, this, &AmbiLED::uiProcessListSelectionChanged);
 
     //Set up LED positions
@@ -266,6 +270,7 @@ void AmbiLED::readSettings()
         ui.captureComboBox->setCurrentText(pSettings->value(pSettingsMap.value(CaptureMethodSetting)).toString());
     if (pSettings->contains(pSettingsMap.value(AveragingMethodSetting)))
         ui.averageMethodComboBox->setCurrentText(pSettings->value(pSettingsMap.value(AveragingMethodSetting)).toString());
+
     if (pSettings->contains(pSettingsMap.value(ColourCorrectionPresetSetting)))
         ui.colourTemperatureComboBox->setCurrentText(pSettings->value(pSettingsMap.value(ColourCorrectionPresetSetting)).toString());
     if (pSettings->contains(pSettingsMap.value(ColourCorrectionRedSetting)))
@@ -374,9 +379,15 @@ void AmbiLED::serialManagerLuxValueChanged()
     ui.brightnessSlider->setValue(pLeds->transformLuxToBrightness(pSerialManager->getLux()));
 }
 
+//Serial port failure (error message)
+void AmbiLED::serialManagerFailed(QString message)
+{
+    ui.debugLabel->setText(message);
+}
+
 //===== UI SLOTS FOR SIGNALS =====
 //Clicked on system tray
-void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
+//void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
 
 //Toggle screen capture
 void AmbiLED::uiScreenCaptureToggled()
@@ -524,8 +535,8 @@ void AmbiLED::uiTrayClicked(QSystemTrayIcon::ActivationReason reason)
     //If you click or double click the system tray icon, show the configuration screen
     if (reason == QSystemTrayIcon::Trigger || reason == QSystemTrayIcon::DoubleClick)
     {
-        this->setWindowState(this->windowState() & (~Qt::WindowMinimized | Qt::WindowActive));
         this->show();
+        this->setWindowState(this->windowState() & (~Qt::WindowMinimized | Qt::WindowActive));
     }
 }
 
@@ -656,6 +667,7 @@ void AmbiLED::displayFullScreen(QImage image)
 
     //Create pixmap and set the label to it
     QPixmap screen = QPixmap::fromImage(image.scaled(ui.screenLabel->width(), ui.screenLabel->height(), Qt::IgnoreAspectRatio, Qt::FastTransformation));
+    PixmapUtils::drawOffsetLines(screen, Qt::red);
     ui.screenLabel->setPixmap(screen);
 }
 

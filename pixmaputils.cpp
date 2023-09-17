@@ -208,7 +208,8 @@ QPixmap& PixmapUtils::drawOffsetLines(QPixmap& input, Qt::GlobalColor colour, fl
     int inHeight = input.height();
     int inWidth = input.width();
 
-    int stripWidth = qCeil(inHeight * offsetPercentage);
+    int stripWidthHorizontal = qCeil(inHeight * offsetPercentage);
+    int stripWidthVertical = qCeil(inWidth * offsetPercentage);
 
     QPainter painter(&input);
 
@@ -222,10 +223,11 @@ QPixmap& PixmapUtils::drawOffsetLines(QPixmap& input, Qt::GlobalColor colour, fl
     brush.setColor(colour);
     painter.setBrush(brush);
 
-    painter.drawRect(0, 0, inWidth, stripWidth);
-    painter.drawRect(0, inHeight - stripWidth, inWidth, stripWidth);
-    painter.drawRect(0, 0, stripWidth, inHeight);
-    painter.drawRect(inWidth - stripWidth, 0, stripWidth, inHeight);
+    //Draw rectangles - x,y,width,height
+    painter.drawRect(0, 0, inWidth, stripWidthHorizontal); //top
+    painter.drawRect(0, inHeight - stripWidthHorizontal, inWidth, stripWidthHorizontal); //bottom
+    painter.drawRect(0, 0, stripWidthVertical, inHeight); //left
+    painter.drawRect(inWidth - stripWidthVertical, 0, stripWidthVertical, inHeight); //right
 
     return input;
 }
