@@ -68,7 +68,7 @@ Error DX9ScreenCapture::createVariables()
     pScreenSize = newSize.value;
 
     //Create image
-    pFrame = QImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGBA8888);
+    pFrame = QImage(pScreenSize.width, pScreenSize.height, QImage::Format_RGB32);
 
     //Create D3D device object
     pD3d = Direct3DCreate9(D3D_SDK_VERSION);
