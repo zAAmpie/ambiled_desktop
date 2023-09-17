@@ -52,6 +52,8 @@ public:
     void setFirmwareVersion(QString firmware);
     //Change port (thread-safe)
     void changeSerialPort(QString portName);
+    //Reconnect (thread-safe)
+    void reconnect();
 	
     //Write an image to the serial port - slot
 	void writeLEDImage(QImage led);

@@ -139,11 +139,13 @@ void SerialManager::requestBytesRead()
 			//If we've missed 3 updates, change status to down
 			emit deviceStatusChanged(false);
 			pDeviceConnected = false;
+			pUpdatesMissed = 0;
 		}
 	}
 	else
 	{
-		//If currently disconnected, request firmware every update
+		//If currently disconnected, try to reconnect and request firmware every update
+		reconnect();
 		requestFirmwareVersion();
 	}
 }
@@ -208,6 +210,29 @@ void SerialManager::changeSerialPort(QString portName)
 	pUpdatesMissed = 0;
 	requestBytesRead();
 	emit readyForTransmit();
+}
+
+//Reconnect
+void SerialManager::reconnect()
+{
+	pMutex.lock();
+
+	//Close serial port
+	if (pSerialPort->isOpen())
+		pSerialPort->close();
+
+	pInitialised = false;
+
+	//Re-open the port
+	if (!pSerialPort->open(QIODevice::ReadWrite))
+		emit failed(Error("SerialManager: Could not open port %1").arg(pSerialPort->portName()));
+	else
+		pInitialised = true;
+
+	pMutex.unlock();
+
+	setFirmwareVersion("Not connected");
+	pUpdatesMissed = 0;
 }
 
 //Bytes are ready to be read from serial port
