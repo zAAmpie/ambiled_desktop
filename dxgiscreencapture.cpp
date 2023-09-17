@@ -1,4 +1,5 @@
 #include "dxgiscreencapture.h"
+#include <QDebug>
 
 #ifdef Q_OS_WIN
 //Constructor
@@ -46,7 +47,10 @@ CaptureValue DXGIScreenCapture::capture()
     }
 
     if (FAILED(hr))
+    {
+        pInitialised = false;
         return CaptureValue(Error("DXGIScreenCapture: Acquire failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
+    }
 
     pHaveFrameLock = true;
 
@@ -57,21 +61,27 @@ CaptureValue DXGIScreenCapture::capture()
     deskRes = nullptr;
 
     if (FAILED(hr))
+    {
+        pInitialised = false;
         return CaptureValue(Error("DXGIScreenCapture: QueryInterface failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
+    }
 
     //Create texture descriptor
     D3D11_TEXTURE2D_DESC desc;
     gpuTex->GetDesc(&desc);
-    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE | D3D11_CPU_ACCESS_READ;
+    desc.CPUAccessFlags = /*D3D11_CPU_ACCESS_WRITE |*/ D3D11_CPU_ACCESS_READ;
     desc.Usage = D3D11_USAGE_STAGING;
     desc.BindFlags = 0;
     desc.MiscFlags = 0; // D3D11_RESOURCE_MISC_GDI_COMPATIBLE ?
-    desc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
+    //desc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
     ID3D11Texture2D* cpuTex = nullptr;
     hr = pD3DDevice->CreateTexture2D(&desc, nullptr, &cpuTex);
 
     if (FAILED(hr))
+    {
+        pInitialised = false;
         return CaptureValue(Error("DXGIScreenCapture: CreateTexture failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
+    }
 
     pD3DDeviceContext->CopyResource(cpuTex, gpuTex);
 
@@ -80,20 +90,27 @@ CaptureValue DXGIScreenCapture::capture()
     hr = pD3DDeviceContext->Map(cpuTex, 0, D3D11_MAP_READ, 0, &sr);
 
     if (FAILED(hr))
+    {
+        pInitialised = false;
         return CaptureValue(Error("DXGIScreenCapture: Map failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
+    }
 
     //Copy data to image
     ScreenSize newSize = ScreenSize(desc.Height, desc.Width);
     if (newSize != pScreenSize)
     {
-        pFrame = QImage(newSize.width, newSize.height, QImage::Format_RGBA8888);
+        pFrame = QImage(newSize.width, newSize.height, QImage::Format_RGB32);
         pScreenSize = newSize;
     }
     for (int h = 0; h < pScreenSize.height; h++)
       memcpy(pFrame.bits() + h * pScreenSize.bytesPerLine(), (BYTE*)(sr.pData) + h * sr.RowPitch, pScreenSize.bytesPerLine());
+        
 
-    //memcpy(pFrame.bits(), sr.pData, pScreenSize.totalBytes());  //TODO: bits() does deep-copy
-    //return CaptureValue(Error("Testing (%1, %2, %3, %4)").arg(*(BYTE*)sr.pData).arg(*((BYTE*)sr.pData+1)).arg(*((BYTE*)sr.pData+2)).arg(*((BYTE*)sr.pData+3)), pFrame);
+//    memcpy(pFrame.bits(), sr.pData, pScreenSize.totalBytes());  //TODO: bits() does deep-copy
+//    return CaptureValue(Error("Testing (%1, %2, %3, %4)").arg(*(BYTE*)sr.pData).arg(*((BYTE*)sr.pData+1)).arg(*((BYTE*)sr.pData+2)).arg(*((BYTE*)sr.pData+3)), pFrame);
+//    qDebug() << pFrame.bits() << QString::fromRawData((QChar *)pFrame.bits(), 20);
+//    qDebug() << sr.pData << QString::fromRawData((QChar *)sr.pData, 20);
+//    qDebug() << (QByteArray::fromRawData((char *)pFrame.constBits(), pFrame.sizeInBytes()) == QByteArray::fromRawData((char *)sr.pData, pFrame.sizeInBytes()));
 
     pD3DDeviceContext->Unmap(cpuTex, 0);
 
@@ -144,14 +161,14 @@ Error DXGIScreenCapture::createVariables()
         return Error("DXGIScreenCapture: CreateDevice failed with code %1").arg(HRESULT_CODE(hr));
 
     //Get DXGI device
-    IDXGIDevice* dxgiDevice = nullptr;
-    hr = pD3DDevice->QueryInterface(__uuidof(IDXGIDevice), (void**)&dxgiDevice);
+    IDXGIDevice4* dxgiDevice = nullptr;
+    hr = pD3DDevice->QueryInterface(__uuidof(IDXGIDevice4), (void**)&dxgiDevice);
     if (FAILED(hr))
         return Error("DXGIScreenCapture: QueryInterface failed with code %1").arg(HRESULT_CODE(hr));
 
     //Get DXGI adapter
-    IDXGIAdapter* dxgiAdapter = nullptr;
-    hr = dxgiDevice->GetParent(__uuidof(IDXGIAdapter), (void**)&dxgiAdapter);
+    IDXGIAdapter4* dxgiAdapter = nullptr;
+    hr = dxgiDevice->GetParent(__uuidof(IDXGIAdapter4), (void**)&dxgiAdapter);
     dxgiDevice->Release();
     dxgiDevice = nullptr;
     if (FAILED(hr))
@@ -169,7 +186,7 @@ Error DXGIScreenCapture::createVariables()
     dxgiOutput->GetDesc(&pOutputDesc);
 
     //QueryInterface for Output 1
-    IDXGIOutput1* dxgiOutput1 = nullptr;
+    IDXGIOutput6* dxgiOutput1 = nullptr;
     hr = dxgiOutput->QueryInterface(__uuidof(dxgiOutput1), (void**)&dxgiOutput1);
     dxgiOutput->Release();
     dxgiOutput = nullptr;
@@ -177,9 +194,11 @@ Error DXGIScreenCapture::createVariables()
         return Error("DXGIScreenCapture: QueryInterface1 failed with code %1").arg(HRESULT_CODE(hr));
 
     //Create desktop duplication
+    const DXGI_FORMAT formats[] = { DXGI_FORMAT_B8G8R8A8_UNORM };
     try
     {
-        hr = dxgiOutput1->DuplicateOutput(pD3DDevice, &pDeskDupl);
+        //hr = dxgiOutput1->DuplicateOutput(pD3DDevice, &pDeskDupl);
+        hr = dxgiOutput1->DuplicateOutput1(pD3DDevice, 0, ARRAYSIZE(formats), formats ,&pDeskDupl);
     }
     catch (...)
     {

@@ -4,7 +4,7 @@
 class DX11ScreenCapture;
 
 #ifdef Q_OS_WIN
-#include <windef.h>
+#include <windows.h>
 #include <d3d11.h>
 
 class DX11ScreenCapture : public ScreenCapture

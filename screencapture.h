@@ -3,7 +3,7 @@
 #include <QImage>
 #include "types.h"
 #ifdef Q_OS_WIN
-#include <windef.h>
+#include <windows.h>
 #endif
 
 using CaptureValue = ReturnValue<QImage>;

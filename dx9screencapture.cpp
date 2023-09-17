@@ -34,7 +34,10 @@ CaptureValue DX9ScreenCapture::capture()
     D3DLOCKED_RECT lockedRect;
     HRESULT hr = pSurface->LockRect(&lockedRect, NULL, D3DLOCK_NO_DIRTY_UPDATE | D3DLOCK_NOSYSLOCK | D3DLOCK_READONLY);
     if (FAILED(hr))
+    {
+        pInitialised = false;
         return CaptureValue("DX9ScreenCapture: Could not lock front buffer", pFrame);
+    }
 
     //Copy locked rectangle to byte array
     memcpy(pFrame.bits(), lockedRect.pBits, pFrame.sizeInBytes());

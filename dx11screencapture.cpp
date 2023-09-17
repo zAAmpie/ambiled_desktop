@@ -55,6 +55,8 @@ CaptureValue DX11ScreenCapture::capture()
 
     //Clean up
     pDeviceContext->Unmap(pNewTexture, 0);
+    pBackBuffer->Release();
+    pNewTexture->Release();
 
     return CaptureValue(pFrame);
 }

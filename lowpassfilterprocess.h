@@ -26,7 +26,7 @@ private:
 
     void addToHistory(QImage &inputImage);
 
-    std::unique_ptr<QElapsedTimer> pDeltaTimer;
+    QElapsedTimer *pDeltaTimer;
     QQueue<QImage> pPreviousImages;
     int pFilterCutoff;
     int pHistoryMax;

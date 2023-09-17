@@ -50,7 +50,7 @@ SerialManager::SerialManager(QString portName, QObject *parent) : QObject(parent
     //Every 50 ms, check if there is anything to read
     pReadTimer = new QTimer();
     pReadTimer->setTimerType(Qt::PreciseTimer);
-    connect(pReadTimer, &QTimer::timeout, this, [=]() {pSerialPort->waitForReadyRead(0); });
+    connect(pReadTimer, &QTimer::timeout, this, [=]() {if (pInitialised) pSerialPort->waitForReadyRead(0); });
     pReadTimer->start(50);
 
     //Request firmware

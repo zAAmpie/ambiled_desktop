@@ -5,7 +5,7 @@ class DXGIScreenCapture;
 
 #ifdef Q_OS_WIN
 #include <d3d11.h>
-#include <dxgi1_2.h>
+#include <dxgi1_6.h>
 
 class DXGIScreenCapture : public ScreenCapture
 {
