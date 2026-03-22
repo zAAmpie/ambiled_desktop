@@ -3,3 +3,5 @@ ambiled_desktop.pro*.user*
 debug/
 release/
 x64/
+.vscode
+.claude
