@@ -17,6 +17,11 @@ ProcessManager::ProcessManager(QObject *parent) : QObject(parent)
 
     //Create default transform
     pTransform = std::make_unique<BlockStripTransform>();
+
+    //Create one low-pass filter per strip (top, bottom, left, right).
+    //These run post-transform on small strip images rather than the full frame.
+    for (auto &f : pStripFilters)
+        f = std::make_unique<LowPassFilterProcess>();
 }
 
 ProcessManager::~ProcessManager()
@@ -89,15 +94,27 @@ void ProcessManager::setTransform(ImageTransform::TransformType type)
 //Process the input screen and provide an LED output
 void ProcessManager::startProcess(QImage screen, StripSizes sizes)
 {
-    //Run through all processing steps in priority order
+    //Run pre-transform filters in priority order.
+    //LowPassFilter is skipped here — it runs post-transform on the small strip images.
     QImage tempImage = screen;
     for (int i = 0; i < pProcessList.size(); ++i)
     {
-        tempImage = pProcessList.at(i)->process(tempImage);
+        if (pProcessList.at(i)->type() != ImageProcess::LowPassFilter)
+            tempImage = pProcessList.at(i)->process(tempImage);
     }
 
     //Transform to strips
     ImageStrips outputStrips = pTransform->transform(tempImage, sizes);
+
+    //Apply low-pass filter post-transform, where each strip is a handful of pixels
+    //rather than a full-resolution frame (~8 MB at 1080p).
+    if (pProcessStatus.value(ImageProcess::LowPassFilter).enabled)
+    {
+        outputStrips.topLine    = pStripFilters[0]->process(outputStrips.topLine);
+        outputStrips.bottomLine = pStripFilters[1]->process(outputStrips.bottomLine);
+        outputStrips.leftLine   = pStripFilters[2]->process(outputStrips.leftLine);
+        outputStrips.rightLine  = pStripFilters[3]->process(outputStrips.rightLine);
+    }
 
     //Signals when processing has been completed
     emit readyProcess(outputStrips);

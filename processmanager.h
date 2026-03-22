@@ -2,6 +2,7 @@
 
 #include "imageprocess.h"
 #include "imagetransform.h"
+#include "lowpassfilterprocess.h"
 #include <QMap>
 #include <QObject>
 #include <QMutex>
@@ -54,6 +55,9 @@ private:
     QList<ImageProcess *> pProcessList;
     QMap<ImageProcess::ProcessType, ProcessStatus> pProcessStatus;
     std::unique_ptr<ImageTransform> pTransform;
+
+    // One filter per strip, applied post-transform on small images instead of the full frame
+    std::unique_ptr<LowPassFilterProcess> pStripFilters[4];
 
     QMutex pMutex;
 };

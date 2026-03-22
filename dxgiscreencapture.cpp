@@ -3,7 +3,7 @@
 
 #ifdef Q_OS_WIN
 //Constructor
-DXGIScreenCapture::DXGIScreenCapture() : ScreenCapture(), pHaveFrameLock(false), pD3DDevice(nullptr), pD3DDeviceContext(nullptr), pDeskDupl(nullptr)
+DXGIScreenCapture::DXGIScreenCapture() : ScreenCapture(), pHaveFrameLock(false), pD3DDevice(nullptr), pD3DDeviceContext(nullptr), pDeskDupl(nullptr), pCpuTex(nullptr), pCpuTexWidth(0), pCpuTexHeight(0)
 {
     pScreenSize = ScreenSize();
 }
@@ -66,28 +66,41 @@ CaptureValue DXGIScreenCapture::capture()
         return CaptureValue(Error("DXGIScreenCapture: QueryInterface failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
     }
 
-    //Create texture descriptor
+    //Get GPU texture dimensions
     D3D11_TEXTURE2D_DESC desc;
     gpuTex->GetDesc(&desc);
-    desc.CPUAccessFlags = /*D3D11_CPU_ACCESS_WRITE |*/ D3D11_CPU_ACCESS_READ;
-    desc.Usage = D3D11_USAGE_STAGING;
-    desc.BindFlags = 0;
-    desc.MiscFlags = 0; // D3D11_RESOURCE_MISC_GDI_COMPATIBLE ?
-    //desc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
-    ID3D11Texture2D* cpuTex = nullptr;
-    hr = pD3DDevice->CreateTexture2D(&desc, nullptr, &cpuTex);
 
-    if (FAILED(hr))
+    //Recreate staging texture only when resolution changes, not every frame
+    if (!pCpuTex || desc.Width != pCpuTexWidth || desc.Height != pCpuTexHeight)
     {
-        pInitialised = false;
-        return CaptureValue(Error("DXGIScreenCapture: CreateTexture failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
+        if (pCpuTex)
+            pCpuTex->Release();
+
+        D3D11_TEXTURE2D_DESC stagingDesc = desc;
+        stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+        stagingDesc.Usage = D3D11_USAGE_STAGING;
+        stagingDesc.BindFlags = 0;
+        stagingDesc.MiscFlags = 0;
+        hr = pD3DDevice->CreateTexture2D(&stagingDesc, nullptr, &pCpuTex);
+
+        if (FAILED(hr))
+        {
+            pCpuTex = nullptr;
+            pInitialised = false;
+            gpuTex->Release();
+            return CaptureValue(Error("DXGIScreenCapture: CreateTexture failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
+        }
+
+        pCpuTexWidth = desc.Width;
+        pCpuTexHeight = desc.Height;
     }
 
-    pD3DDeviceContext->CopyResource(cpuTex, gpuTex);
+    pD3DDeviceContext->CopyResource(pCpuTex, gpuTex);
+    gpuTex->Release();
 
     //Map subresource
     D3D11_MAPPED_SUBRESOURCE sr;
-    hr = pD3DDeviceContext->Map(cpuTex, 0, D3D11_MAP_READ, 0, &sr);
+    hr = pD3DDeviceContext->Map(pCpuTex, 0, D3D11_MAP_READ, 0, &sr);
 
     if (FAILED(hr))
     {
@@ -95,25 +108,18 @@ CaptureValue DXGIScreenCapture::capture()
         return CaptureValue(Error("DXGIScreenCapture: Map failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
     }
 
-    //Copy data to image
+    //Allocate a fresh image each frame so bits() never triggers a CoW detach
+    //copying stale pixel data before we overwrite it.
     ScreenSize newSize = ScreenSize(desc.Height, desc.Width);
-    if (newSize != pScreenSize)
-    {
-        pFrame = QImage(newSize.width, newSize.height, QImage::Format_RGB32);
-        pScreenSize = newSize;
-    }
-    for (int h = 0; h < pScreenSize.height; h++)
-      memcpy(pFrame.bits() + h * pScreenSize.bytesPerLine(), (BYTE*)(sr.pData) + h * sr.RowPitch, pScreenSize.bytesPerLine());
+    pScreenSize = newSize;
+    QImage writeFrame(newSize.width, newSize.height, QImage::Format_RGB32);
+    BYTE* dst = writeFrame.bits();
+    for (int h = 0; h < newSize.height; h++)
+        memcpy(dst + h * newSize.bytesPerLine(), (BYTE*)(sr.pData) + h * sr.RowPitch, newSize.bytesPerLine());
 
-    //memcpy(pFrame.bits(), sr.pData, pScreenSize.totalBytes());  //TODO: bits() does deep-copy
-    //return CaptureValue(Error("Testing (%1, %2, %3, %4)").arg(*(BYTE*)sr.pData).arg(*((BYTE*)sr.pData+1)).arg(*((BYTE*)sr.pData+2)).arg(*((BYTE*)sr.pData+3)), pFrame);
+    pD3DDeviceContext->Unmap(pCpuTex, 0);
 
-    pD3DDeviceContext->Unmap(cpuTex, 0);
-
-    //Clean up
-    cpuTex->Release();
-    gpuTex->Release();
-
+    pFrame = writeFrame;
     return CaptureValue(pFrame);
 }
 
@@ -220,6 +226,8 @@ Error DXGIScreenCapture::createVariables()
 //Clean up variables
 void DXGIScreenCapture::cleanup()
 {
+    if (pCpuTex)
+        pCpuTex->Release();
     if (pDeskDupl)
         pDeskDupl->Release();
     if (pD3DDeviceContext)
@@ -227,6 +235,9 @@ void DXGIScreenCapture::cleanup()
     if (pD3DDevice)
         pD3DDevice->Release();
 
+    pCpuTex = nullptr;
+    pCpuTexWidth = 0;
+    pCpuTexHeight = 0;
     pDeskDupl = nullptr;
     pD3DDeviceContext = nullptr;
     pD3DDevice = nullptr;

@@ -32,6 +32,11 @@ private:
     ID3D11DeviceContext* pD3DDeviceContext;
     IDXGIOutputDuplication* pDeskDupl;
     DXGI_OUTPUT_DESC pOutputDesc;
+
+    // Staging texture reused across frames; recreated only on resolution change
+    ID3D11Texture2D* pCpuTex;
+    UINT pCpuTexWidth;
+    UINT pCpuTexHeight;
 };
 
 #endif
