@@ -10,6 +10,9 @@ AmbiLED::AmbiLED(QWidget *parent)
       pSerialBytesWritten(0),
       pNotificationShown(false),
       pSerialPortReady(false),
+      pCaptureEnabled(false),
+      pFullscreenMode(false),
+      pDebugMode(false),
       pCaptureIdleMode(false)
 {
     //Register metatypes to use in signal/slot system
@@ -52,6 +55,9 @@ AmbiLED::AmbiLED(QWidget *parent)
     connect(pScreenManager, &ScreenManager::failed, this, &AmbiLED::screenManagerFailed);
     uiCaptureModeChanged(ui.captureComboBox->currentIndex());
     uiFullscreenModeToggled();
+
+    //Enable capture on startup to match the checked state set in setupGUI
+    uiScreenCaptureToggled();
 
     //Move capturing of the screen to another thread. Will need to see if that's possible with X11
     pCaptureThread = new ExecThread();
@@ -161,6 +167,10 @@ void AmbiLED::setupGUI()
     connect(ui.brightnessSlider, &QSlider::valueChanged, this, [=]() {ui.brightnessValueLabel->setText(tr("%1%").arg(ui.brightnessSlider->value())); });
     ui.brightnessValueLabel->setText(tr("%1%").arg(ui.brightnessSlider->value()));
 
+    //Set up capture toggle — check before connecting so no signal fires before pScreenManager exists
+    ui.captureCheckBox->setChecked(true);
+    connect(ui.captureCheckBox, &QCheckBox::toggled, this, &AmbiLED::uiScreenCaptureToggled);
+
     //Set up debug connection
     connect(ui.debugCheckBox, &QCheckBox::toggled, this, &AmbiLED::uiDebugModeToggled);
 
@@ -213,6 +223,11 @@ void AmbiLED::setupGUI()
     blackBarWidget->setData(Qt::UserRole, ImageProcess::BlackBarRemoval);
     ui.processingList->addItem(blackBarWidget);
     blackBarWidget->setSelected(true);
+
+    QListWidgetItem *lowPassWidget = new QListWidgetItem(tr("Low pass filter"));
+    lowPassWidget->setData(Qt::UserRole, ImageProcess::LowPassFilter);
+    ui.processingList->addItem(lowPassWidget);
+
     connect(ui.processingList, &QListWidget::itemSelectionChanged, this, &AmbiLED::uiProcessListSelectionChanged);
 
     //Set up LED positions
@@ -395,6 +410,9 @@ void AmbiLED::uiScreenCaptureToggled()
     pCaptureEnabled = !pCaptureEnabled;
     pScreenManager->setEnabled(pCaptureEnabled);
     pSuspendAction->setChecked(pCaptureEnabled);
+    //Keep checkbox in sync when toggled from the tray action
+    QSignalBlocker blocker(ui.captureCheckBox);
+    ui.captureCheckBox->setChecked(pCaptureEnabled);
 }
 
 //Toggle debug mode

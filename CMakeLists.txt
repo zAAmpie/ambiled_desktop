@@ -112,6 +112,18 @@ if(WIN32)
     )
     # GUI subsystem — no console window
     set_target_properties(ambiled_desktop PROPERTIES WIN32_EXECUTABLE TRUE)
+
+    # Whole-program optimization + link-time code generation for optimized builds.
+    # /GL lets the compiler defer codegen to link time so the linker can inline
+    # across translation units. /LTCG is the matching linker flag.
+    # /arch:AVX2 enables AVX2 auto-vectorization for pixel loops.
+    # /fp:fast relaxes floating-point strictness for colour/filter math.
+    target_compile_options(ambiled_desktop PRIVATE
+        $<$<CONFIG:Release,RelWithDebInfo>:/GL /arch:AVX2 /fp:fast>
+    )
+    target_link_options(ambiled_desktop PRIVATE
+        $<$<CONFIG:Release,RelWithDebInfo>:/LTCG>
+    )
 endif()
 
 if(UNIX AND NOT APPLE)
