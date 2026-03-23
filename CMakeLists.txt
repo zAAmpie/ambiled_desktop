@@ -130,3 +130,9 @@ if(UNIX AND NOT APPLE)
     find_package(X11 REQUIRED)
     target_link_libraries(ambiled_desktop PRIVATE X11::X11)
 endif()
+
+# ---------------------------------------------------------------------------
+# Tests
+# ---------------------------------------------------------------------------
+enable_testing()
+add_subdirectory(tests)
