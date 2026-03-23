@@ -37,7 +37,7 @@ public:
     void setTransform(ImageTransform::TransformType type);
 
     //Process the input screen and provide an LED output
-    void startProcess(QImage screen, StripSizes sizes);
+    void startProcess(const QImage& screen, StripSizes sizes);
 signals:
     //Signals when processing has been completed
     void readyProcess(ImageStrips strips);

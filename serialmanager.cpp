@@ -98,7 +98,7 @@ void SerialManager::setFirmwareVersion(QString firmware)
 }
 
 //Write an image to the serial port
-void SerialManager::writeLEDImage(QImage led)
+void SerialManager::writeLEDImage(const QImage& led)
 {
 	QByteArray dataArray;
 

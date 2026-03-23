@@ -19,7 +19,7 @@ BlackBarProcess::~BlackBarProcess()
 }
 
 //Process the image and remove black bars
-QImage BlackBarProcess::process(QImage inputImage)
+QImage BlackBarProcess::process(const QImage& inputImage)
 {
     Q_ASSERT(!inputImage.isNull());
 
@@ -39,7 +39,7 @@ QImage BlackBarProcess::process(QImage inputImage)
 }
 
 //Test to see if line is black (within a theshold)
-int BlackBarProcess::getFirstNonBlackLine(const QImage image)
+int BlackBarProcess::getFirstNonBlackLine(const QImage& image)
 {
     int idxLine = 0;
     int stopLine = qCeil(static_cast<double>(image.height()) * pScanThreshold);
@@ -83,7 +83,7 @@ int BlackBarProcess::getFirstNonBlackLine(const QImage image)
     return idxLine - 1;
 }
 
-int BlackBarProcess::getLastNonBlackLine(const QImage image)
+int BlackBarProcess::getLastNonBlackLine(const QImage& image)
 {
     int idxLine = image.height() - 1;
     int stopLine = qFloor(static_cast<double>(image.height()) * (1 - pScanThreshold));

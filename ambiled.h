@@ -62,17 +62,17 @@ signals:
 
     //===== PROCESS MANAGER SIGNALS FOR SLOTS =====
     //Process the input screen and provide an LED output
-    void processManagerStartProcess(QImage screen, StripSizes sizes);
+    void processManagerStartProcess(const QImage& screen, StripSizes sizes);
     //TODO: Add full configuration of process manager
 
     //===== SERIAL MANAGER SIGNALS FOR SLOTS =====
     //Write an image to the serial port
-    void serialManagerWriteLEDImage(QImage led);
+    void serialManagerWriteLEDImage(const QImage& led);
 
 private:
     //===== SCREEN MANAGER SLOTS FOR SIGNALS =====
     //Final processed image is ready
-    void screenManagerReadyFrame(QImage screenImage);
+    void screenManagerReadyFrame(const QImage& screenImage);
     //Screen Manager signalled failure
     void screenManagerFailed(QString message);
 
@@ -131,9 +131,9 @@ private:
     //Display image on label
     void displayStrips(ImageStrips outLines);
     //Display full screen on label
-    void displayFullScreen(QImage image);
+    void displayFullScreen(const QImage& image);
     //Update the UI LED image at the bottom
-    void displayLEDStrip(QImage image);
+    void displayLEDStrip(const QImage& image);
     //Update UI elements that require it
     void updateUIElements();
     //Show popup with device firmware and information

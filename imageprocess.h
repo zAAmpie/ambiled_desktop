@@ -18,6 +18,6 @@ public:
     virtual ProcessType type() const = 0;
 
     //Virtual function that processes an input image into an output
-    virtual QImage process(QImage inputImage) = 0;
+    virtual QImage process(const QImage& inputImage) = 0;
 };
 

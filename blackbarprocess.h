@@ -18,11 +18,11 @@ public:
     ProcessType type() const override {return ProcessType::BlackBarRemoval;}
 
     //Process the image and remove black bars
-    QImage process(QImage inputImage) override;
+    QImage process(const QImage& inputImage) override;
 private:
     //Test to see if line is black (within a theshold)
-    int getFirstNonBlackLine(const QImage image); //TODO: See if we can speed this up
-    int getLastNonBlackLine(const QImage image);
+    int getFirstNonBlackLine(const QImage& image); //TODO: See if we can speed this up
+    int getLastNonBlackLine(const QImage& image);
 
     float pScanThreshold;
     float pValueThreshold;

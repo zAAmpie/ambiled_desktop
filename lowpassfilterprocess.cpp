@@ -23,7 +23,7 @@ LowPassFilterProcess::~LowPassFilterProcess()
 }
 
 //Process the input image and return a filtered output
-QImage LowPassFilterProcess::process(QImage inputImage)
+QImage LowPassFilterProcess::process(const QImage& inputImage)
 {
     addToHistory(inputImage);
 
@@ -34,8 +34,8 @@ QImage LowPassFilterProcess::process(QImage inputImage)
 
     float ePow = 1 - qExp(-deltaTime * 2 * PI * pFilterCutoff);
     //Simple LP filter simply mixes current and previous samples (this will halve the effective update speed though)
-    BYTE* inputArray = inputImage.bits();  //TODO: bits() does deep-copy
-    BYTE* previousArray = previousImage.bits();  //TODO: bits() does deep-copy
+    const BYTE* inputArray = inputImage.constBits();
+    BYTE* previousArray = previousImage.bits();
     qint64 arrayLength = inputImage.sizeInBytes();
 
     for (qint32 i = 0; i < arrayLength; ++i)
@@ -50,13 +50,13 @@ QImage LowPassFilterProcess::process(QImage inputImage)
 }
 
 //If newest image is different than previous ones, flush because calculations won't make sense
-void LowPassFilterProcess::flushHistoryIfIncompatible(QImage &inputImage)
+void LowPassFilterProcess::flushHistoryIfIncompatible(const QImage& inputImage)
 {
     if (!pPreviousImages.isEmpty() && pPreviousImages.constFirst().size() != inputImage.size())
         pPreviousImages.clear();
 }
 
-void LowPassFilterProcess::addToHistory(QImage &inputImage)
+void LowPassFilterProcess::addToHistory(const QImage& inputImage)
 {
     flushHistoryIfIncompatible(inputImage);
 

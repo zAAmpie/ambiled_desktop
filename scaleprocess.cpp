@@ -62,7 +62,7 @@ ScaleProcess::~ScaleProcess()
 //Scales image using the selected scaler type
 #ifdef Q_OS_WIN
 //For Windows, we'll use the WIC library to do the scaling
-QImage ScaleProcess::process(QImage inputImage)
+QImage ScaleProcess::process(const QImage& inputImage)
 {
     //Dynamically set ImageSize if percentage scaling is enabled
     if (pScalePercentage > 0.0f)
@@ -73,7 +73,7 @@ QImage ScaleProcess::process(QImage inputImage)
 
     //Create bitmap from screen data
     IWICBitmap *WICBitmap = nullptr;
-    HRESULT hr = pWICFactory->CreateBitmapFromMemory(inputImage.width(), inputImage.height(), GUID_WICPixelFormat32bppBGRA, inputImage.bytesPerLine(), inputImage.sizeInBytes(), inputImage.bits(), &WICBitmap);  //TODO: bits() does deep-copy
+    HRESULT hr = pWICFactory->CreateBitmapFromMemory(inputImage.width(), inputImage.height(), GUID_WICPixelFormat32bppBGRA, inputImage.bytesPerLine(), inputImage.sizeInBytes(), const_cast<BYTE*>(inputImage.constBits()), &WICBitmap);
     Q_ASSERT(SUCCEEDED(hr));
 
     //Create scaler if it doesn't exist
@@ -120,7 +120,7 @@ QImage ScaleProcess::process(QImage inputImage)
 }
 #else
 //For everything else, use QImage scalers
-QImage ScaleProcess::process(QImage inputImage)
+QImage ScaleProcess::process(const QImage& inputImage)
 {
     //Dynamically set ImageSize if percentage scaling is enabled
     if (pScalePercentage > 0.0f)

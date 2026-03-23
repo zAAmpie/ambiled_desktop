@@ -92,7 +92,7 @@ void ProcessManager::setTransform(ImageTransform::TransformType type)
 }
 
 //Process the input screen and provide an LED output
-void ProcessManager::startProcess(QImage screen, StripSizes sizes)
+void ProcessManager::startProcess(const QImage& screen, StripSizes sizes)
 {
     //Run pre-transform filters in priority order.
     //LowPassFilter is skipped here — it runs post-transform on the small strip images.

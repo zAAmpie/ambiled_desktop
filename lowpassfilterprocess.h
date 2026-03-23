@@ -19,12 +19,12 @@ public:
     ProcessType type() const override {return ProcessType::LowPassFilter;}
 
     //Process the input image and return a filtered output
-    QImage process(QImage inputImage) override;
+    QImage process(const QImage& inputImage) override;
 private:
     //If newest image is different than previous ones, flush because calculations won't make sense
-    void flushHistoryIfIncompatible(QImage &inputImage);
+    void flushHistoryIfIncompatible(const QImage& inputImage);
 
-    void addToHistory(QImage &inputImage);
+    void addToHistory(const QImage& inputImage);
 
     QElapsedTimer *pDeltaTimer;
     QQueue<QImage> pPreviousImages;

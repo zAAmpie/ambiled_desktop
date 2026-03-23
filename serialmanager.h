@@ -56,7 +56,7 @@ public:
     void reconnect();
 	
     //Write an image to the serial port - slot
-	void writeLEDImage(QImage led);
+    void writeLEDImage(const QImage& led);
 signals:
     //Data read from serial port
     void serialDataRead(QByteArray data);

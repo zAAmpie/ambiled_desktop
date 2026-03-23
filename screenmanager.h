@@ -36,7 +36,7 @@ public:
     void disableTestPatternGeneration() {setTestPatternGeneration(false);}
 signals:
     //Signals that final processed image is ready
-    void readyFrame(QImage screenImage);
+    void readyFrame(const QImage& screenImage);
 
     //Signals failure
     void failed(QString message);

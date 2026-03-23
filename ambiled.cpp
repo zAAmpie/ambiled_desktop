@@ -560,7 +560,7 @@ void AmbiLED::uiTrayClicked(QSystemTrayIcon::ActivationReason reason)
 
 //===== SCREEN MANAGER SLOTS FOR SIGNALS =====
 //Final processed image is ready
-void AmbiLED::screenManagerReadyFrame(QImage screenImage)
+void AmbiLED::screenManagerReadyFrame(const QImage& screenImage)
 {
     Q_ASSERT(!screenImage.isNull());
 
@@ -675,7 +675,7 @@ void AmbiLED::displayStrips(ImageStrips outLines)
 }
 
 //Display full screen on label
-void AmbiLED::displayFullScreen(QImage image)
+void AmbiLED::displayFullScreen(const QImage& image)
 {
     //Early out if not visible
     if (!this->isVisible())
@@ -690,7 +690,7 @@ void AmbiLED::displayFullScreen(QImage image)
 }
 
 //Update the UI LED image at the bottom
-void AmbiLED::displayLEDStrip(QImage image)
+void AmbiLED::displayLEDStrip(const QImage& image)
 {
     //Early out if not visibile
     if (!this->isVisible())

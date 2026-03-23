@@ -18,7 +18,7 @@ public:
     ProcessType type() const override {return pType;}
 
     //Scales image using the selected scaler type
-    QImage process(QImage inputImage) override;
+    QImage process(const QImage& inputImage) override;
 private:
     ProcessType pType;
     ImageSize pOutputSize;
