@@ -72,6 +72,13 @@ void ScreenManager::setCaptureMode(ScreenCapture::CaptureMode mode)
     pMutex.unlock();
 }
 
+//GPU downscale factor — delegates to capture backend (no-op on non-DXGI backends)
+void ScreenManager::setGPUScaleFactor(float factor)
+{
+    QMutexLocker lock(&pMutex);
+    pScreen->setGPUScaleFactor(factor);
+}
+
 //Frame rate (thread-safe)
 void ScreenManager::setFrameRate(int rate)
 {

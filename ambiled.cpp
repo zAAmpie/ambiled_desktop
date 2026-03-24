@@ -220,6 +220,7 @@ void AmbiLED::setupGUI()
 
     //Set up downscale method
     ui.scaleMethodComboBox->addItem(tr("No downscale"), -1);
+    ui.scaleMethodComboBox->addItem(tr("GPU bilinear shader (DXGI only)"), -2);
     ui.scaleMethodComboBox->addItem(tr("Sample (Fastest)"), ImageProcess::SampleScale);
     ui.scaleMethodComboBox->addItem(tr("Linear"), ImageProcess::LinearScale);
     ui.scaleMethodComboBox->addItem(tr("Cubic (Slowest)"), ImageProcess::CubicScale);
@@ -544,19 +545,23 @@ void AmbiLED::uiAverageMethodComboChanged(int index)
 void AmbiLED::uiScaleMethodComboChanged(int index)
 {
     int data = ui.scaleMethodComboBox->itemData(index).toInt();
-    if (data < 0)
+
+    // Always disable all CPU scale processes first
+    pProcessManager->disableProcess(ImageProcess::SampleScale);
+    pProcessManager->disableProcess(ImageProcess::LinearScale);
+    pProcessManager->disableProcess(ImageProcess::CubicScale);
+
+    if (data == -2)
     {
-        pProcessManager->disableProcess(ImageProcess::SampleScale);
-        pProcessManager->disableProcess(ImageProcess::LinearScale);
-        pProcessManager->disableProcess(ImageProcess::CubicScale);
+        // GPU bilinear shader — enable GPU scaler, leave CPU processes disabled
+        pScreenManager->setGPUScaleFactor(0.25f);
     }
     else
     {
-        ImageProcess::ProcessType scaleType = static_cast<ImageProcess::ProcessType>(data);
-        pProcessManager->disableProcess(ImageProcess::SampleScale);
-        pProcessManager->disableProcess(ImageProcess::LinearScale);
-        pProcessManager->disableProcess(ImageProcess::CubicScale);
-        pProcessManager->enableProcess(scaleType);
+        // CPU path or no downscale — disable GPU scaler
+        pScreenManager->setGPUScaleFactor(1.0f);
+        if (data >= 0)
+            pProcessManager->enableProcess(static_cast<ImageProcess::ProcessType>(data));
     }
 }
 

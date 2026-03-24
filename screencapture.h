@@ -24,6 +24,9 @@ public:
 
     //Main function to start capturing the screen
     virtual CaptureValue capture() = 0;
+
+    // GPU-side downscale before CPU readback. No-op on backends that don't support it.
+    virtual void setGPUScaleFactor(float factor) { Q_UNUSED(factor) }
 protected:
 #ifdef Q_OS_WIN
     //Calculate window size

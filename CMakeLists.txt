@@ -64,12 +64,14 @@ set(HEADERS
 # ---------------------------------------------------------------------------
 if(WIN32)
     list(APPEND SOURCES
+        d3d11scaler.cpp
         dx11screencapture.cpp
         dx9screencapture.cpp
         dxgiscreencapture.cpp
         gdiscreencapture.cpp
     )
     list(APPEND HEADERS
+        d3d11scaler.h
         dx11screencapture.h
         dx9screencapture.h
         dxgiscreencapture.h
@@ -106,6 +108,8 @@ if(WIN32)
     target_link_libraries(ambiled_desktop PRIVATE
         d3d11
         d3d9
+        d3dcompiler
+        dxgi
         gdi32
         windowscodecs
         ole32

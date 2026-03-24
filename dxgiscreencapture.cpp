@@ -3,9 +3,21 @@
 
 #ifdef Q_OS_WIN
 //Constructor
-DXGIScreenCapture::DXGIScreenCapture() : ScreenCapture(), pHaveFrameLock(false), pD3DDevice(nullptr), pD3DDeviceContext(nullptr), pDeskDupl(nullptr), pCpuTex(nullptr), pCpuTexWidth(0), pCpuTexHeight(0)
+DXGIScreenCapture::DXGIScreenCapture() : ScreenCapture(), pHaveFrameLock(false), pD3DDevice(nullptr), pD3DDeviceContext(nullptr), pDeskDupl(nullptr), pCpuTex(nullptr), pCpuTexWidth(0), pCpuTexHeight(0), pScaleFactor(1.0f)
 {
     pScreenSize = ScreenSize();
+}
+
+void DXGIScreenCapture::setGPUScaleFactor(float factor)
+{
+    pScaleFactor = factor;
+    if (pScaler)
+        pScaler->setScaleFactor(factor);
+}
+
+float DXGIScreenCapture::scaleFactor() const
+{
+    return pScaleFactor;
 }
 
 //Destructor
@@ -66,9 +78,14 @@ CaptureValue DXGIScreenCapture::capture()
         return CaptureValue(Error("DXGIScreenCapture: QueryInterface failed with code %1").arg(HRESULT_CODE(hr)), pFrame);
     }
 
-    //Get GPU texture dimensions
+    // GPU downscale: scale the captured texture on the GPU before readback.
+    // Skip when scale factor is 1.0 (no downscale) or scaler is unavailable.
+    ID3D11Texture2D* readbackTex = (pScaler && pScaleFactor < 1.0f) ? pScaler->scale(gpuTex) : nullptr;
+    if (!readbackTex)
+        readbackTex = gpuTex;
+
     D3D11_TEXTURE2D_DESC desc;
-    gpuTex->GetDesc(&desc);
+    readbackTex->GetDesc(&desc);
 
     //Recreate staging texture only when resolution changes, not every frame
     if (!pCpuTex || desc.Width != pCpuTexWidth || desc.Height != pCpuTexHeight)
@@ -95,8 +112,8 @@ CaptureValue DXGIScreenCapture::capture()
         pCpuTexHeight = desc.Height;
     }
 
-    pD3DDeviceContext->CopyResource(pCpuTex, gpuTex);
-    gpuTex->Release();
+    pD3DDeviceContext->CopyResource(pCpuTex, readbackTex);
+    gpuTex->Release(); // scaler owns pOutputTex; we only release the original frame texture
 
     //Map subresource
     D3D11_MAPPED_SUBRESOURCE sr;
@@ -162,6 +179,9 @@ Error DXGIScreenCapture::createVariables()
     if (FAILED(hr))
         return Error("DXGIScreenCapture: CreateDevice failed with code %1").arg(HRESULT_CODE(hr));
 
+    // Create GPU scaler now that we have a device and context
+    pScaler = std::make_unique<D3D11Scaler>(pD3DDevice, pD3DDeviceContext, pScaleFactor);
+
     //Get DXGI device
     IDXGIDevice4* dxgiDevice = nullptr;
     hr = pD3DDevice->QueryInterface(__uuidof(IDXGIDevice4), reinterpret_cast<void**>(&dxgiDevice));
@@ -226,6 +246,7 @@ Error DXGIScreenCapture::createVariables()
 //Clean up variables
 void DXGIScreenCapture::cleanup()
 {
+    pScaler.reset();
     if (pCpuTex)
         pCpuTex->Release();
     if (pDeskDupl)

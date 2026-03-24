@@ -30,6 +30,9 @@ public:
     void enable() {setEnabled(true);}
     void disable() {setEnabled(false);}
 
+    //GPU downscale factor — only has effect on DXGI capture mode
+    void setGPUScaleFactor(float factor);
+
     //Debug mode
     void setTestPatternGeneration(bool state);
     void enableTestPatternGeneration() {setTestPatternGeneration(true);}

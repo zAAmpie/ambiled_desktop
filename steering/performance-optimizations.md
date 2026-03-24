@@ -13,19 +13,17 @@ reallocated when the captured resolution changes.
 
 ---
 
-## 2. `bits()` Deep Copies Throughout the Pipeline
-**Files:** `scaleprocess.cpp:76`, `dxgiscreencapture.cpp` (partially fixed)
-**Impact:** High
-**Note:** Already flagged by in-code `TODO` comments.
+## ~~2. `bits()` Deep Copies Throughout the Pipeline~~ ✅ Done
+**Files:** `dxgiscreencapture.cpp`, `scaleprocess.cpp`
 
 `QImage` uses copy-on-write (CoW). Calling `bits()` on a shared image forces a full detach
 (deep copy of the entire pixel buffer). At 1080p this is ~8MB per call.
 
-**Status:** The DXGI capture path was fixed — a fresh local `QImage writeFrame` is now
-allocated as the sole owner before writing, avoiding the CoW detach. Remaining site:
-- `scaleprocess.cpp:76` — `CreateBitmapFromMemory` writes into a `QImage` retrieved via
-  `bits()`. The image may be shared. Use `constBits()` for read-only access; ensure the
-  output image is freshly allocated before writing.
+- **DXGI path:** A fresh local `QImage writeFrame` is allocated as the sole owner before
+  writing, avoiding the CoW detach on capture.
+- **ScaleProcess path:** Output image `pOutImage` promoted to a member and pre-allocated;
+  `CopyPixels` writes directly into a single-owner buffer. `constBits()` used for read-only
+  input access.
 
 ---
 
@@ -38,63 +36,33 @@ instead of the full capture frame.
 
 ---
 
-## 4. WICBitmap Allocated and Released Every Frame
-**File:** `scaleprocess.cpp:75-117`
-**Impact:** Medium
+## ~~4. WICBitmap Allocated and Released Every Frame~~ ✅ Done
+**File:** `scaleprocess.cpp`
 
-On Windows, `ScaleProcess::process()` calls `CreateBitmapFromMemory` and `Release` on every
-invocation. The output `QImage` is also freshly constructed each frame.
-
-```cpp
-IWICBitmap *WICBitmap = nullptr;
-hr = pWICFactory->CreateBitmapFromMemory(..., &WICBitmap);
-// ... scale ...
-WICBitmap->Release(); // every frame
-```
-
-**Fix:** Cache `WICBitmap` as a member. Reuse it when input dimensions haven't changed,
-only reallocating on resolution change. Similarly, pre-allocate the output `QImage` and
-reuse its buffer by writing into `outImage.bits()` in-place.
+`pWICBitmap` promoted to a member variable alongside `pWICScaler` and `pWICFactory`.
+On subsequent frames with the same input dimensions, pixel data is updated in-place via
+`IWICBitmapLock` instead of reallocating. Only recreated on resolution change.
+`pWICScaler` was already cached; no change needed there.
 
 ---
 
-## 5. Strip Buffer Allocations per Frame
-**Files:** `imagetransform.cpp:37-47`, `striptransform.cpp:27-29`, `blocktransform.cpp:27`
-**Impact:** Medium
+## ~~5. Strip Buffer Allocations per Frame~~ ⛔ Won't Do
 
-Each call to `transform()` produces 4 strips. For each strip:
-- `copyStrip` calls `QImage::copy()` — allocates a new image
-- `StripTransform` calls `scaled()` twice — two more allocations
-- `BlockTransform` calls `scaled()` once
-
-That's up to 12 QImage heap allocations per frame in the transform stage alone.
-
-**Fix:** Pre-allocate strip output images as member variables in each transform class.
-Reuse them each frame by writing into existing buffers. Check that dimensions still match
-before reuse; reallocate only on change.
+Only one transform is active at a time, so the real cost is 4 strips × 2–3 allocations =
+8–12 allocations per frame depending on transform type. Eliminating these would require
+replacing `QImage::copy()` and `scaled()` with manual pixel loops into pre-allocated
+buffers — significant rewrite for marginal gain. The allocation cost is small relative to
+the pixel work in `scaled()`. The GPU downsampling architectural change would eliminate
+this entire stage anyway.
 
 ---
 
-## 6. Bug: Broken Switch in Non-Windows ScaleProcess
-**File:** `scaleprocess.cpp:138`
-**Impact:** Correctness bug on Linux/X11
+## ~~6. Bug: Broken Switch in Non-Windows ScaleProcess~~ ✅ Done
+**File:** `scaleprocess.cpp`
 
-```cpp
-case LinearScale | CubicScale:  // Bitwise OR — matches neither value individually
-    return inputImage.scaled(...);
-// No default: — falls off end of non-void function → undefined behaviour
-```
-
-This means on non-Windows builds, any call with `LinearScale` or `CubicScale` hits UB.
-
-**Fix:**
-```cpp
-case LinearScale:
-case CubicScale:
-    return inputImage.scaled(..., Qt::SmoothTransformation);
-default:
-    return inputImage.scaled(..., Qt::FastTransformation);
-```
+`case LinearScale | CubicScale` (bitwise OR, value 3, matched neither enumerator) replaced
+with two proper fall-through cases. `default` added to cover future enum additions and
+eliminate undefined behaviour from falling off a non-void function.
 
 ---
 
