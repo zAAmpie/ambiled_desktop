@@ -15,7 +15,6 @@ BlackBarProcess::BlackBarProcess(float scanThresholdPercentage, float blackValue
 //Destructor
 BlackBarProcess::~BlackBarProcess()
 {
-
 }
 
 //Process the image and remove black bars
@@ -35,94 +34,67 @@ QImage BlackBarProcess::process(const QImage& inputImage)
     //Set some constants
     int scanLineBytes = inputImage.width() * (inputImage.depth() >> 3); //Number of bytes in a scanline
 
-    return QImage(inputImage.constBits() + topLineSkip * scanLineBytes, inputImage.width(), reducedHeight, QImage::Format_RGB32);;
+    return QImage(inputImage.constBits() + topLineSkip * scanLineBytes, inputImage.width(), reducedHeight, QImage::Format_RGB32);
 }
 
-//Test to see if line is black (within a theshold)
+// Scan top-down and return the index of the first non-black row.
+// Each row is sampled at COLUMN_SAMPLE_STEP intervals; pixels are read as uint32_t
+// (Format_RGB32 = 0xffRRGGBB) so alpha is naturally excluded and the inner per-byte
+// loop is eliminated. The inner loop exits early once sum exceeds the threshold.
 int BlackBarProcess::getFirstNonBlackLine(const QImage& image)
 {
+    const int width = image.width();
     int idxLine = 0;
     int stopLine = qCeil(static_cast<double>(image.height()) * pScanThreshold);
-    //TODO: Support for 10-bit colour etc.
-    int depth = image.depth() >> 3; //Divide by 8 to get bytes - assume 8-bit colour
-    int scanLinePitch = image.width() * depth;
-    //We will be averaging over alpha channels, so one of the pixels will be 255
-    //E.g. (0,0,0,255) will average out to 64.
-    //If we have threshold of 5, we want to trigger on anything over (5,5,5,255)
-    int blackThreshold = pValueThreshold * scanLinePitch;
-    int sum;
 
-    //Determine which layer is the alpha
-    //int skipAlphaIndex = 0;
-    //if (image.pixelFormat().alphaPosition() == QPixelFormat::AtEnd)
-    //    skipAlphaIndex = depth - 1;
+    // Scale threshold to the number of sampled pixels; multiply by 3 for RGB channels only
+    int sampledPixels = (width + COLUMN_SAMPLE_STEP - 1) / COLUMN_SAMPLE_STEP;
+    int blackThreshold = static_cast<int>(pValueThreshold * sampledPixels * 3);
+    int sum;
 
     do
     {
         sum = 0;
-        //Get pointer to first scanline
-        const BYTE *line = image.constScanLine(idxLine++);
+        const auto* pixel = reinterpret_cast<const uint32_t*>(image.constScanLine(idxLine++));
+        const auto* end   = pixel + width;
 
-        //Advance pointer in increments of depth until end of data
-        for (int ptrOffset = 0; ptrOffset < scanLinePitch; ptrOffset += depth)
+        for (; pixel < end; pixel += COLUMN_SAMPLE_STEP)
         {
-            sum -= 255;
-            //Sum value of RGB for each pixel
-            for (int colour = 0; colour < depth; ++colour)
-            {
-                /*if (colour == skipAlphaIndex)
-                {
-                    line++;
-                    continue;
-                }*/
-                sum += *line++;
-            }
+            uint32_t px = *pixel;
+            sum += (px & 0xFF) + ((px >> 8) & 0xFF) + ((px >> 16) & 0xFF); // B + G + R
+            if (sum >= blackThreshold)
+                break; // Row is non-black — no need to scan further
         }
     } while (idxLine < stopLine && sum < blackThreshold);
 
     return idxLine - 1;
 }
 
+// Scan bottom-up and return the index of the last non-black row.
 int BlackBarProcess::getLastNonBlackLine(const QImage& image)
 {
+    const int width = image.width();
     int idxLine = image.height() - 1;
-    int stopLine = qFloor(static_cast<double>(image.height()) * (1 - pScanThreshold));
-    //TODO: Support for 10-bit colour
-    int depth = image.depth() >> 3; //Divide by 8 to get bytes - assume 8-bit colour
-    int scanLinePitch = image.width() * depth;
-    //We will be averaging over alpha channels, so one of the pixels will be 255
-    //E.g. (0,0,0,255) will average out to 64.
-    int blackThreshold = pValueThreshold * scanLinePitch;
-    int sum;
+    int stopLine = qFloor(static_cast<double>(image.height()) * (1.0 - pScanThreshold));
 
-    //Determine which layer is the alpha
-    //int skipAlphaIndex = 0;
-    //if (image.pixelFormat().alphaPosition() == QPixelFormat::AtEnd)
-    //    skipAlphaIndex = depth - 1;
+    int sampledPixels = (width + COLUMN_SAMPLE_STEP - 1) / COLUMN_SAMPLE_STEP;
+    int blackThreshold = static_cast<int>(pValueThreshold * sampledPixels * 3);
+    int sum;
 
     do
     {
-        sum = -255;
-        //Get pointer to first scanline
-        const BYTE *line = image.constScanLine(idxLine--);
+        sum = 0;
+        const auto* pixel = reinterpret_cast<const uint32_t*>(image.constScanLine(idxLine--));
+        const auto* end   = pixel + width;
 
-        //Advance pointer in increments of depth until end of data
-        for (int ptrOffset = 0; ptrOffset < scanLinePitch; ptrOffset += depth)
+        for (; pixel < end; pixel += COLUMN_SAMPLE_STEP)
         {
-            sum -= 255;
-            //Sum value of RGB for each pixel
-            for (int colour = 0; colour < depth; ++colour)
-            {
-                /*if (colour == skipAlphaIndex)
-                {
-                    line++;
-                    continue;
-                }*/
-                sum += *line++;
-            }
+            uint32_t px = *pixel;
+            sum += (px & 0xFF) + ((px >> 8) & 0xFF) + ((px >> 16) & 0xFF); // B + G + R
+            if (sum >= blackThreshold)
+                break; // Row is non-black — no need to scan further
         }
     } while (idxLine > stopLine && sum < blackThreshold);
 
     return idxLine + 1;
 }
-

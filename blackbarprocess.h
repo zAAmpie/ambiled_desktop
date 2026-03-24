@@ -2,15 +2,16 @@
 
 #include "imageprocess.h"
 
-//Maximum percentage of the screen to search before giving up, e.g. 0.25 = 25% of the top/bottom
-static constexpr float DEFAULT_THRESHOLD_PERCENTAGE = 0.25f;
-//Minimum value to consider "black". Can use a non-zero value to account for noise in poor quality video
-static constexpr float DEFAULT_BLACK_VALUE_THRESHOLD = 5.0f;
-
 class BlackBarProcess : public ImageProcess
 {
     /* Removes black bars from widescreen content */
 public:
+    static constexpr float DEFAULT_THRESHOLD_PERCENTAGE = 0.25f;
+    static constexpr float DEFAULT_BLACK_VALUE_THRESHOLD = 5.0f;
+    // Sample every Nth column per row — reduces inner-loop work ~8x while
+    // still reliably detecting any non-black content in letterbox bars
+    static constexpr int COLUMN_SAMPLE_STEP = 8;
+
     BlackBarProcess(float scanThresholdPercentage = DEFAULT_THRESHOLD_PERCENTAGE,
                     float blackValueThreshold = DEFAULT_BLACK_VALUE_THRESHOLD);
     ~BlackBarProcess();
@@ -20,8 +21,7 @@ public:
     //Process the image and remove black bars
     QImage process(const QImage& inputImage) override;
 private:
-    //Test to see if line is black (within a theshold)
-    int getFirstNonBlackLine(const QImage& image); //TODO: See if we can speed this up
+    int getFirstNonBlackLine(const QImage& image);
     int getLastNonBlackLine(const QImage& image);
 
     float pScanThreshold;
