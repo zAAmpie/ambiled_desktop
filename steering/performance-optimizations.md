@@ -5,62 +5,36 @@ Issues are ordered by impact.
 
 ---
 
-## 1. DXGI Staging Texture Created Every Frame
-**File:** `dxgiscreencapture.cpp:78`
-**Impact:** Very High
+## ~~1. DXGI Staging Texture Created Every Frame~~ ✅ Done
+**File:** `dxgiscreencapture.cpp`
 
-`CreateTexture2D` is called inside `capture()`, which runs at the target frame rate (default 60fps).
-D3D texture allocation involves driver-level memory management and is not cheap.
-
-```cpp
-// Currently runs every frame:
-ID3D11Texture2D* cpuTex = nullptr;
-hr = pD3DDevice->CreateTexture2D(&desc, nullptr, &cpuTex);
-// ...
-cpuTex->Release();
-```
-
-**Fix:** Promote `cpuTex` to a member variable. Allocate on first use and only reallocate
-when the captured resolution changes (i.e. when `newSize != pScreenSize`).
+`pCpuTex` promoted to a member variable. Texture is now reused across frames and only
+reallocated when the captured resolution changes.
 
 ---
 
 ## 2. `bits()` Deep Copies Throughout the Pipeline
-**Files:** `lowpassfilterprocess.cpp:37-38`, `scaleprocess.cpp:76`, `dxgiscreencapture.cpp:108`
+**Files:** `scaleprocess.cpp:76`, `dxgiscreencapture.cpp` (partially fixed)
 **Impact:** High
 **Note:** Already flagged by in-code `TODO` comments.
 
 `QImage` uses copy-on-write (CoW). Calling `bits()` on a shared image forces a full detach
-(deep copy of the entire pixel buffer). At 1080p this is ~8MB per call. The pipeline passes
-images by value through multiple stages, so several full-buffer copies are occurring per frame.
+(deep copy of the entire pixel buffer). At 1080p this is ~8MB per call.
 
-**Fix:**
-- Use `constBits()` for any read-only pixel access — this does not trigger a detach.
-- Ensure mutable access (`bits()`) only happens on an image with a single owner, either by
-  passing by reference where the intent is in-place mutation, or by explicitly detaching once
-  before entering a loop rather than implicitly inside it.
+**Status:** The DXGI capture path was fixed — a fresh local `QImage writeFrame` is now
+allocated as the sole owner before writing, avoiding the CoW detach. Remaining site:
+- `scaleprocess.cpp:76` — `CreateBitmapFromMemory` writes into a `QImage` retrieved via
+  `bits()`. The image may be shared. Use `constBits()` for read-only access; ensure the
+  output image is freshly allocated before writing.
 
 ---
 
-## 3. LowPassFilter Operates on Full-Resolution Image
-**File:** `lowpassfilterprocess.cpp:40-47`
-**Impact:** High
+## ~~3. LowPassFilter Operates on Full-Resolution Image~~ ✅ Done
+**File:** `processmanager.cpp`
 
-The filter iterates over every byte of the full input frame before any downsampling occurs:
-
-```cpp
-qint64 arrayLength = inputImage.sizeInBytes(); // ~8MB at 1080p, every frame
-for (qint32 i = 0; i < arrayLength; ++i) { ... }
-```
-
-The filter's purpose is to smooth the LED output over time. Since the LED data is a small
-set of averaged strip pixels, applying temporal smoothing to the full megapixel image is
-doing orders of magnitude more work than needed.
-
-**Fix:** Move `LowPassFilterProcess` to execute **after** `ImageTransform`, operating on the
-small `ImageStrips` output (a few pixels per LED) rather than on the full capture frame.
-This also makes the filter more semantically correct — it smooths the LED values, not the
-raw screen content.
+`LowPassFilterProcess` moved to execute after `ImageTransform`. Four dedicated
+`LowPassFilterProcess` instances in `ProcessManager` now operate on the small strip images
+instead of the full capture frame.
 
 ---
 

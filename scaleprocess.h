@@ -27,6 +27,9 @@ private:
 #ifdef Q_OS_WIN
     IWICImagingFactory *pWICFactory;
     IWICBitmapScaler *pWICScaler;
+    IWICBitmap *pWICBitmap;
+    ImageSize pWICBitmapSize;
+    QImage pOutImage;
 #endif
 };
 

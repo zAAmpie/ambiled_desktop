@@ -122,6 +122,8 @@ private:
     void uiColourTempComboChanged(int index);
     //Averaging method preset has been changed
     void uiAverageMethodComboChanged(int index);
+    //Downscale method has been changed
+    void uiScaleMethodComboChanged(int index);
     //Selection was changed in the processing list
     void uiProcessListSelectionChanged();
     //Clicked on system tray

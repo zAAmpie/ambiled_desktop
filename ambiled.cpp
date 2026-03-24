@@ -218,6 +218,13 @@ void AmbiLED::setupGUI()
     ui.averageMethodComboBox->addItem(tr("Block Averaging (Great/Slowest)"), ImageTransform::BlockTransform);
     connect(ui.averageMethodComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiAverageMethodComboChanged);
 
+    //Set up downscale method
+    ui.scaleMethodComboBox->addItem(tr("No downscale"), -1);
+    ui.scaleMethodComboBox->addItem(tr("Sample (Fastest)"), ImageProcess::SampleScale);
+    ui.scaleMethodComboBox->addItem(tr("Linear"), ImageProcess::LinearScale);
+    ui.scaleMethodComboBox->addItem(tr("Cubic (Slowest)"), ImageProcess::CubicScale);
+    connect(ui.scaleMethodComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiScaleMethodComboChanged);
+
     //Set up processing list
     QListWidgetItem *blackBarWidget = new QListWidgetItem(tr("Remove black bars"));
     blackBarWidget->setData(Qt::UserRole, ImageProcess::BlackBarRemoval);
@@ -531,6 +538,26 @@ void AmbiLED::uiAverageMethodComboChanged(int index)
 {
     ImageTransform::TransformType transformType = static_cast<ImageTransform::TransformType>(ui.averageMethodComboBox->itemData(index).toInt());
     pProcessManager->setTransform(transformType);
+}
+
+//Different downscale method has been selected
+void AmbiLED::uiScaleMethodComboChanged(int index)
+{
+    int data = ui.scaleMethodComboBox->itemData(index).toInt();
+    if (data < 0)
+    {
+        pProcessManager->disableProcess(ImageProcess::SampleScale);
+        pProcessManager->disableProcess(ImageProcess::LinearScale);
+        pProcessManager->disableProcess(ImageProcess::CubicScale);
+    }
+    else
+    {
+        ImageProcess::ProcessType scaleType = static_cast<ImageProcess::ProcessType>(data);
+        pProcessManager->disableProcess(ImageProcess::SampleScale);
+        pProcessManager->disableProcess(ImageProcess::LinearScale);
+        pProcessManager->disableProcess(ImageProcess::CubicScale);
+        pProcessManager->enableProcess(scaleType);
+    }
 }
 
 //Selection was changed in the processing list

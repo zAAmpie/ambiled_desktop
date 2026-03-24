@@ -13,6 +13,8 @@ ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, ImageSize outputSize)
         pType = ProcessType::LinearScale;
 
 #ifdef Q_OS_WIN
+    pWICBitmap = nullptr;
+    pWICScaler = nullptr;
     //Create WIC factory
     HRESULT hr = CoCreateInstance(
         CLSID_WICImagingFactory,
@@ -37,6 +39,8 @@ ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, float scalePercentage
         pType = ProcessType::LinearScale;
 
 #ifdef Q_OS_WIN
+    pWICBitmap = nullptr;
+    pWICScaler = nullptr;
     //Create WIC factory
     HRESULT hr = CoCreateInstance(
         CLSID_WICImagingFactory,
@@ -52,10 +56,12 @@ ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, float scalePercentage
 ScaleProcess::~ScaleProcess()
 {
 #ifdef Q_OS_WIN
-    if (pWICFactory)
-        pWICFactory->Release();
+    if (pWICBitmap)
+        pWICBitmap->Release();
     if (pWICScaler)
         pWICScaler->Release();
+    if (pWICFactory)
+        pWICFactory->Release();
 #endif
 }
 
@@ -71,15 +77,35 @@ QImage ScaleProcess::process(const QImage& inputImage)
         pOutputSize.width = qCeil(static_cast<float>(inputImage.width()) * pScalePercentage);
     }
 
-    //Create bitmap from screen data
-    IWICBitmap *WICBitmap = nullptr;
-    HRESULT hr = pWICFactory->CreateBitmapFromMemory(inputImage.width(), inputImage.height(), GUID_WICPixelFormat32bppBGRA, inputImage.bytesPerLine(), inputImage.sizeInBytes(), const_cast<BYTE*>(inputImage.constBits()), &WICBitmap);
-    Q_ASSERT(SUCCEEDED(hr));
+    ImageSize inputSize{inputImage.width(), inputImage.height()};
+
+    //Recreate WIC bitmap only when input dimensions change
+    if (!pWICBitmap || inputSize != pWICBitmapSize)
+    {
+        if (pWICBitmap)
+            pWICBitmap->Release();
+        HRESULT hr = pWICFactory->CreateBitmapFromMemory(inputImage.width(), inputImage.height(), GUID_WICPixelFormat32bppBGRA, inputImage.bytesPerLine(), inputImage.sizeInBytes(), const_cast<BYTE*>(inputImage.constBits()), &pWICBitmap);
+        Q_ASSERT(SUCCEEDED(hr));
+        pWICBitmapSize = inputSize;
+    }
+    else
+    {
+        //Reuse existing bitmap — update pixel data in-place
+        IWICBitmapLock *lock = nullptr;
+        WICRect rect{0, 0, inputImage.width(), inputImage.height()};
+        HRESULT hr = pWICBitmap->Lock(&rect, WICBitmapLockWrite, &lock);
+        Q_ASSERT(SUCCEEDED(hr));
+        UINT bufferSize = 0;
+        BYTE *data = nullptr;
+        lock->GetDataPointer(&bufferSize, &data);
+        memcpy(data, inputImage.constBits(), inputImage.sizeInBytes());
+        lock->Release();
+    }
 
     //Create scaler if it doesn't exist
     if (!pWICScaler)
     {
-        hr = pWICFactory->CreateBitmapScaler(&pWICScaler);
+        HRESULT hr = pWICFactory->CreateBitmapScaler(&pWICScaler);
         Q_ASSERT(SUCCEEDED(hr));
     }
 
@@ -101,22 +127,20 @@ QImage ScaleProcess::process(const QImage& inputImage)
     };
 
     //Initialize scaler
-    hr = pWICScaler->Initialize(WICBitmap, pOutputSize.width, pOutputSize.height, interpolationMode);
+    HRESULT hr = pWICScaler->Initialize(pWICBitmap, pOutputSize.width, pOutputSize.height, interpolationMode);
     Q_ASSERT(SUCCEEDED(hr));
 
-    //Create the same image type, but with different sizes
+    //Pre-allocate output image only when output dimensions change
+    if (pOutImage.width() != pOutputSize.width || pOutImage.height() != pOutputSize.height || pOutImage.format() != inputImage.format())
+        pOutImage = QImage(pOutputSize.width, pOutputSize.height, inputImage.format());
+
+    //Scale directly into the pre-allocated buffer
     quint64 outStride = pOutputSize.width * (inputImage.depth() >> 3); //Depth is in bits, so divide by 8 for bytes
     quint64 outSize = pOutputSize.width * pOutputSize.height * (inputImage.depth() >> 3);
-    QImage outImage(pOutputSize.width, pOutputSize.height, inputImage.format());
-
-    //Scale
-    hr = pWICScaler->CopyPixels(nullptr, outStride, outSize, outImage.bits());  //TODO: bits() does deep-copy
+    hr = pWICScaler->CopyPixels(nullptr, outStride, outSize, pOutImage.bits());
     Q_ASSERT(SUCCEEDED(hr));
 
-    //Relase
-    WICBitmap->Release();
-
-    return outImage;
+    return pOutImage;
 }
 #else
 //For everything else, use QImage scalers
