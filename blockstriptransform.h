@@ -2,12 +2,11 @@
 
 #include "imagetransform.h"
 
-#define DEFAULT_STRIP_WIDTH_PERCENTAGE 0.1
-
 class BlockStripTransform : public ImageTransform
 {
     /* Transform that quickly scales to an intermediate resolution and then does the final smooth transform to strips. Not as expensive as BlockTransform. */
 public:
+    static constexpr float DEFAULT_STRIP_WIDTH_PERCENTAGE = 0.1f;
     BlockStripTransform(float stripWidthPercentage = DEFAULT_STRIP_WIDTH_PERCENTAGE);
     ~BlockStripTransform();
 

@@ -3,9 +3,9 @@
 #include "imageprocess.h"
 
 //Maximum percentage of the screen to search before giving up, e.g. 0.25 = 25% of the top/bottom
-#define DEFAULT_THRESHOLD_PERCENTAGE 0.25
+static constexpr float DEFAULT_THRESHOLD_PERCENTAGE = 0.25f;
 //Minimum value to consider "black". Can use a non-zero value to account for noise in poor quality video
-#define DEFAULT_BLACK_VALUE_THRESHOLD 5
+static constexpr float DEFAULT_BLACK_VALUE_THRESHOLD = 5.0f;
 
 class BlackBarProcess : public ImageProcess
 {

@@ -5,8 +5,8 @@
 #include <QQueue>
 
 //Low pass filter cutoff in Hertz
-#define DEFAULT_FILTER_CUTOFF_HZ 10
-#define DEFAULT_HISTORY_MAX 1
+static constexpr int DEFAULT_FILTER_CUTOFF_HZ = 10;
+static constexpr int DEFAULT_HISTORY_MAX = 1;
 
 class LowPassFilterProcess : public ImageProcess
 {

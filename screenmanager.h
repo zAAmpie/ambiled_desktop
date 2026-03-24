@@ -4,7 +4,7 @@
 #include <QMutex>
 #include "screencapture.h"
 
-#define DEFAULT_FRAMERATE 60
+static constexpr int DEFAULT_FRAMERATE = 60;
 
 class ScreenManager : public QObject
 {
