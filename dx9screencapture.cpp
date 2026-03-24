@@ -32,7 +32,7 @@ CaptureValue DX9ScreenCapture::capture()
 
     //Lock front buffer
     D3DLOCKED_RECT lockedRect;
-    HRESULT hr = pSurface->LockRect(&lockedRect, NULL, D3DLOCK_NO_DIRTY_UPDATE | D3DLOCK_NOSYSLOCK | D3DLOCK_READONLY);
+    HRESULT hr = pSurface->LockRect(&lockedRect, nullptr, D3DLOCK_NO_DIRTY_UPDATE | D3DLOCK_NOSYSLOCK | D3DLOCK_READONLY);
     if (FAILED(hr))
     {
         pInitialised = false;
@@ -95,7 +95,7 @@ Error DX9ScreenCapture::createVariables()
         return Error("DX9ScreenCapture: Could not create DirectX9 device - %1").arg(hr);
 
     //Create offscreen surface
-    hr = pDevice->CreateOffscreenPlainSurface(pScreenSize.width, pScreenSize.height, D3DFMT_A8R8G8B8, D3DPOOL_SCRATCH, &pSurface, NULL);
+    hr = pDevice->CreateOffscreenPlainSurface(pScreenSize.width, pScreenSize.height, D3DFMT_A8R8G8B8, D3DPOOL_SCRATCH, &pSurface, nullptr);
     if (FAILED(hr))
         return Error("DX9ScreenCapture: Could not create offscreen surface - %1").arg(hr);
 

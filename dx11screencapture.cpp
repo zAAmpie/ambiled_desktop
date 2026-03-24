@@ -38,7 +38,7 @@ CaptureValue DX11ScreenCapture::capture()
     description.CPUAccessFlags = D3D11_CPU_ACCESS_READ;// | D3D11_CPU_ACCESS_WRITE;
     description.Usage = D3D11_USAGE_STAGING;
 
-    HRESULT hr = pDevice11->CreateTexture2D( &description, NULL, &pNewTexture );
+    HRESULT hr = pDevice11->CreateTexture2D( &description, nullptr, &pNewTexture );
     if (FAILED(hr) || !pNewTexture)
         return CaptureValue("DX11ScreenCapture: Create texture failed", pFrame);
 
@@ -111,7 +111,7 @@ Error DX11ScreenCapture::createSwapChain()
     pScDesc.SampleDesc.Count = 1;
 
     //Create swap chain and device
-    HRESULT hr = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, NULL, 0, D3D11_SDK_VERSION, &pScDesc, &pSwapChain, &pDevice11, NULL, &pDeviceContext);
+    HRESULT hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &pScDesc, &pSwapChain, &pDevice11, nullptr, &pDeviceContext);
     if (FAILED(hr))
         return Error("DX11ScreenCapture: SwapChain creation failed with %1").arg(hr);
     return NoError;

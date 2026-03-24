@@ -16,7 +16,7 @@ ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, ImageSize outputSize)
     //Create WIC factory
     HRESULT hr = CoCreateInstance(
         CLSID_WICImagingFactory,
-        NULL,
+        nullptr,
         CLSCTX_INPROC_SERVER,
         IID_PPV_ARGS(&pWICFactory)
     );
@@ -40,7 +40,7 @@ ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, float scalePercentage
     //Create WIC factory
     HRESULT hr = CoCreateInstance(
         CLSID_WICImagingFactory,
-        NULL,
+        nullptr,
         CLSCTX_INPROC_SERVER,
         IID_PPV_ARGS(&pWICFactory)
     );
@@ -110,7 +110,7 @@ QImage ScaleProcess::process(const QImage& inputImage)
     QImage outImage(pOutputSize.width, pOutputSize.height, inputImage.format());
 
     //Scale
-    hr = pWICScaler->CopyPixels(NULL, outStride, outSize, outImage.bits());  //TODO: bits() does deep-copy
+    hr = pWICScaler->CopyPixels(nullptr, outStride, outSize, outImage.bits());  //TODO: bits() does deep-copy
     Q_ASSERT(SUCCEEDED(hr));
 
     //Relase
