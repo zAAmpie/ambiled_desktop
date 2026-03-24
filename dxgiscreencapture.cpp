@@ -56,7 +56,7 @@ CaptureValue DXGIScreenCapture::capture()
 
     //Create GPU texture
     ID3D11Texture2D* gpuTex = nullptr;
-    hr = deskRes->QueryInterface(__uuidof(ID3D11Texture2D), (void**)&gpuTex);
+    hr = deskRes->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&gpuTex));
     deskRes->Release();
     deskRes = nullptr;
 
@@ -115,7 +115,7 @@ CaptureValue DXGIScreenCapture::capture()
     QImage writeFrame(newSize.width, newSize.height, QImage::Format_RGB32);
     BYTE* dst = writeFrame.bits();
     for (int h = 0; h < newSize.height; h++)
-        memcpy(dst + h * newSize.bytesPerLine(), (BYTE*)(sr.pData) + h * sr.RowPitch, newSize.bytesPerLine());
+        memcpy(dst + h * newSize.bytesPerLine(), static_cast<const BYTE*>(sr.pData) + h * sr.RowPitch, newSize.bytesPerLine());
 
     pD3DDeviceContext->Unmap(pCpuTex, 0);
 
@@ -164,13 +164,13 @@ Error DXGIScreenCapture::createVariables()
 
     //Get DXGI device
     IDXGIDevice4* dxgiDevice = nullptr;
-    hr = pD3DDevice->QueryInterface(__uuidof(IDXGIDevice4), (void**)&dxgiDevice);
+    hr = pD3DDevice->QueryInterface(__uuidof(IDXGIDevice4), reinterpret_cast<void**>(&dxgiDevice));
     if (FAILED(hr))
         return Error("DXGIScreenCapture: QueryInterface failed with code %1").arg(HRESULT_CODE(hr));
 
     //Get DXGI adapter
     IDXGIAdapter4* dxgiAdapter = nullptr;
-    hr = dxgiDevice->GetParent(__uuidof(IDXGIAdapter4), (void**)&dxgiAdapter);
+    hr = dxgiDevice->GetParent(__uuidof(IDXGIAdapter4), reinterpret_cast<void**>(&dxgiAdapter));
     dxgiDevice->Release();
     dxgiDevice = nullptr;
     if (FAILED(hr))
@@ -189,7 +189,7 @@ Error DXGIScreenCapture::createVariables()
 
     //QueryInterface for Output 1
     IDXGIOutput6* dxgiOutput1 = nullptr;
-    hr = dxgiOutput->QueryInterface(__uuidof(dxgiOutput1), (void**)&dxgiOutput1);
+    hr = dxgiOutput->QueryInterface(__uuidof(dxgiOutput1), reinterpret_cast<void**>(&dxgiOutput1));
     dxgiOutput->Release();
     dxgiOutput = nullptr;
     if (FAILED(hr))
