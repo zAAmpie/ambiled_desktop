@@ -21,12 +21,12 @@
 #define SERIAL_PACKET_OVERHEAD SERIAL_HEADER_OVERHEAD + SERIAL_CHECKSUM_OVERHEAD //Header overhead + checksum
 
 
-typedef enum {
+enum class DeviceCommands : BYTE {
     ShowCommand = 0xFF,
     FirmwareCommand = 0xFD,
     ReadBytesCommand = 0xFE,
     LuxCommand = 0xFC
-} DeviceCommands;
+};
 
 
 class SerialManager : public QObject
@@ -46,7 +46,7 @@ public:
     //Get the latest lux value
     int getLux() const {return pLux;}
     //Check if the device is connected
-	bool connected() { return pDeviceConnected; }
+    bool connected() const { return pDeviceConnected; }
 
     //Set firmware version (thread-safe)
     void setFirmwareVersion(QString firmware);

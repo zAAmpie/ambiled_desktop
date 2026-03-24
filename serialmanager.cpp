@@ -116,7 +116,7 @@ void SerialManager::writeLEDImage(const QImage& led)
 	}
 
 	//Append a 0xFF to the end to show the output
-    dataArray.append(static_cast<BYTE>(ShowCommand));
+    dataArray.append(static_cast<BYTE>(DeviceCommands::ShowCommand));
 
     //If we're connected, write the LED to the serial port
 	if (pDeviceConnected)
@@ -131,7 +131,7 @@ void SerialManager::requestBytesRead()
 	if (pDeviceConnected)
 	{
 		QByteArray dataArray;
-        dataArray.append(static_cast<BYTE>(ReadBytesCommand));
+        dataArray.append(static_cast<BYTE>(DeviceCommands::ReadBytesCommand));
 		writeToSerialPort(dataArray);
 
 		if (pUpdatesMissed++ >= 3)
@@ -154,7 +154,7 @@ void SerialManager::requestBytesRead()
 void SerialManager::requestFirmwareVersion()
 {
 	QByteArray dataArray;
-    dataArray.append(static_cast<BYTE>(FirmwareCommand));
+    dataArray.append(static_cast<BYTE>(DeviceCommands::FirmwareCommand));
 	writeToSerialPort(dataArray);
 }
 
@@ -162,7 +162,7 @@ void SerialManager::requestFirmwareVersion()
 void SerialManager::requestLux()
 {
 	QByteArray dataArray;
-    dataArray.append(static_cast<BYTE>(LuxCommand));
+    dataArray.append(static_cast<BYTE>(DeviceCommands::LuxCommand));
 	writeToSerialPort(dataArray);
 }
 
@@ -321,14 +321,14 @@ void SerialManager::serialPortReadyRead()
 			}
 #endif
 			//If we get to this point, a packet has been read successfully
-			switch (type)
+			switch (static_cast<DeviceCommands>(type))
 			{
-			case ReadBytesCommand:
+			case DeviceCommands::ReadBytesCommand:
 				//It's a packet that returns how much data has been read. This is sent to the GUI
 				pUpdatesMissed = 0;
 				emit serialDataRead(payload);
 				break;
-			case FirmwareCommand:
+			case DeviceCommands::FirmwareCommand:
 				//It's a packet that shows the firmware. Set status and version
                 setFirmwareVersion(QString::fromUtf8(payload));
 				pUpdatesMissed = 0;
@@ -338,7 +338,7 @@ void SerialManager::serialPortReadyRead()
 					emit deviceStatusChanged(true);
 				}
 				break;
-			case LuxCommand:
+			case DeviceCommands::LuxCommand:
 				//It's a packet that shows the current lux value
 				pUpdatesMissed = 0;
 				QDataStream luxStream(payload);

@@ -14,7 +14,7 @@ struct ProcessStatus
 
     ProcessStatus(int prio, bool enable) : priority(prio), enabled(enable) {}
     ProcessStatus() : priority(0), enabled(false) {}
-    bool operator<(ProcessStatus &rhs) {return priority < rhs.priority;}
+    bool operator<(const ProcessStatus &rhs) const {return priority < rhs.priority;}
 };
 
 class ProcessManager : public QObject
