@@ -10,7 +10,7 @@ set(CMAKE_AUTOMOC ON)  # moc (Q_OBJECT classes)
 set(CMAKE_AUTORCC ON)  # rcc (.qrc resource files)
 set(CMAKE_AUTOUIC ON)  # uic (.ui designer files)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets SerialPort)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets SerialPort DBus)
 
 # ---------------------------------------------------------------------------
 # Sources shared across all platforms
@@ -80,8 +80,8 @@ if(WIN32)
 endif()
 
 if(UNIX AND NOT APPLE)
-    list(APPEND SOURCES x11screencapture.cpp)
-    list(APPEND HEADERS x11screencapture.h)
+    list(APPEND SOURCES x11screencapture.cpp pipewire_screencapture.cpp)
+    list(APPEND HEADERS x11screencapture.h   pipewire_screencapture.h)
 endif()
 
 # ---------------------------------------------------------------------------
@@ -131,8 +131,17 @@ if(WIN32)
 endif()
 
 if(UNIX AND NOT APPLE)
-    find_package(X11 REQUIRED)
-    target_link_libraries(ambiled_desktop PRIVATE X11::X11)
+    find_package(X11 REQUIRED COMPONENTS Xext)
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(PIPEWIRE REQUIRED libpipewire-0.3)
+
+    target_link_libraries(ambiled_desktop PRIVATE
+        X11::X11
+        X11::Xext
+        Qt6::DBus
+        ${PIPEWIRE_LIBRARIES})
+    target_include_directories(ambiled_desktop PRIVATE ${PIPEWIRE_INCLUDE_DIRS})
+    target_compile_options(ambiled_desktop PRIVATE ${PIPEWIRE_CFLAGS_OTHER})
 endif()
 
 # ---------------------------------------------------------------------------

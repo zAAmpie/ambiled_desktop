@@ -157,9 +157,14 @@ void AmbiLED::setupGUI()
     ui.captureComboBox->addItem(tr("DirectX 11"), ScreenCapture::DirectX11Mode);
     ui.captureComboBox->addItem(tr("GDI"), ScreenCapture::GDIMode);
 #ifdef Q_OS_UNIX
+    ui.captureComboBox->addItem(tr("PipeWire"), ScreenCapture::PipeWireMode);
     ui.captureComboBox->addItem(tr("X11"), ScreenCapture::X11Mode);
 #endif
+#ifdef Q_OS_UNIX
+    ui.captureComboBox->setCurrentIndex(ui.captureComboBox->findData(ScreenCapture::PipeWireMode));
+#else
     ui.captureComboBox->setCurrentIndex(1);
+#endif
     connect(ui.captureComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiCaptureModeChanged);
 
     //Set up brightness slider

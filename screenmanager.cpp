@@ -5,6 +5,7 @@
 #include "gdiscreencapture.h"
 #ifdef Q_OS_UNIX
 #include "x11screencapture.h"
+#include "pipewire_screencapture.h"
 #endif
 #include <QTimer>
 #include <QPainter>
@@ -21,7 +22,7 @@ ScreenManager::ScreenManager(int frameRate, QObject *parent) : QObject(parent), 
     pScreen = std::make_unique<DXGIScreenCapture>();
 #endif
 #ifdef Q_OS_UNIX
-    pScreen = std::unique_ptr<ScreenCapture>(new X11ScreenCapture());
+    pScreen = std::unique_ptr<ScreenCapture>(new PipeWireScreenCapture());
 #endif
 
     //Start frame timer based on frame period
@@ -64,6 +65,9 @@ void ScreenManager::setCaptureMode(ScreenCapture::CaptureMode mode)
 #ifdef Q_OS_UNIX
     case ScreenCapture::X11Mode:
         pScreen = std::unique_ptr<ScreenCapture>(new X11ScreenCapture());
+        break;
+    case ScreenCapture::PipeWireMode:
+        pScreen = std::unique_ptr<ScreenCapture>(new PipeWireScreenCapture());
         break;
 #endif
     default:
