@@ -31,41 +31,48 @@ updated colours to the LED hardware.
 
 The app is organised as a small pipeline, each stage owned by a manager class and connected
 by Qt signals/slots so capture and processing can run on their own threads
-([execthread.h](execthread.h)):
+([src/common/execthread.h](src/common/execthread.h)):
 
 ```
 ScreenCapture (per-platform) -> ScreenManager -> ProcessManager -> LEDS -> SerialManager
 ```
 
-- **[screencapture.h](screencapture.h) / [screenmanager.h](screenmanager.h)** — `ScreenCapture`
+The source tree mirrors this pipeline:
+
+- **[src/capture/](src/capture/)** — `ScreenCapture` ([screencapture.h](src/capture/screencapture.h))
   is the abstract base for grabbing a raw frame of the desktop. Each backend
-  ([dxgiscreencapture](dxgiscreencapture.h), [dx11screencapture](dx11screencapture.h),
-  [dx9screencapture](dx9screencapture.h), [gdiscreencapture](gdiscreencapture.h),
-  [x11screencapture](x11screencapture.h)) implements it for one platform/API.
-  `ScreenManager` owns the active backend, polls it on a timer at the configured frame rate,
-  and emits `readyFrame` with the captured image.
-- **[imageprocess.h](imageprocess.h) / [processmanager.h](processmanager.h)** — `ImageProcess`
+  ([dxgiscreencapture](src/capture/dxgiscreencapture.h), [dx11screencapture](src/capture/dx11screencapture.h),
+  [dx9screencapture](src/capture/dx9screencapture.h), [gdiscreencapture](src/capture/gdiscreencapture.h),
+  [x11screencapture](src/capture/x11screencapture.h)) implements it for one platform/API.
+  [screenmanager.h](src/capture/screenmanager.h)'s `ScreenManager` owns the active backend,
+  polls it on a timer at the configured frame rate, and emits `readyFrame` with the captured
+  image.
+- **[src/process/](src/process/)** — `ImageProcess` ([imageprocess.h](src/process/imageprocess.h))
   is the base class for an image-processing step
-  ([blackbarprocess](blackbarprocess.h), [scaleprocess](scaleprocess.h) — which also covers
-  linear/cubic scaling, [lowpassfilterprocess](lowpassfilterprocess.h)). `ProcessManager` runs
-  the enabled steps in priority order, then applies an `ImageTransform` to reduce the result
-  to edge strips.
-- **[imagetransform.h](imagetransform.h)** — base class for turning an image into
-  `ImageStrips` (one thin image per screen edge). Implementations:
-  [simpletransform](simpletransform.h) (plain average), [striptransform](striptransform.h),
-  [blockstriptransform](blockstriptransform.h), [blocktransform](blocktransform.h).
-- **[leds.h](leds.h)** — `LEDS` holds the physical LED layout (`LEDPositions`), converts
-  `ImageStrips` into a single 1-D LED image (`transformToLED`), and applies brightness and
-  colour-temperature correction before handing it to the serial manager.
-- **[serialmanager.h](serialmanager.h)** — frames and writes the LED image to the serial
-  device, requests firmware version/lux readings, verifies parity/CRC, and automatically
-  retries the connection once a second if the device is disconnected.
-- **[ambiled.h](ambiled.h) / [ambiled.cpp](ambiled.cpp) / [ambiled.ui](ambiled.ui)** — the main
-  window and system tray integration that wires the managers together, exposes their
-  settings in the UI, and persists them with `QSettings`.
-- **[types.h](types.h) / [util.h](util.h) / [pixmaputils.h](pixmaputils.h)** — shared value
-  types (`ScreenSize`, `StripSizes`, `ReturnValue<T>` error-handling helper) and small image
-  utility functions used across the pipeline.
+  ([blackbarprocess](src/process/blackbarprocess.h), [scaleprocess](src/process/scaleprocess.h) —
+  which also covers linear/cubic scaling, [lowpassfilterprocess](src/process/lowpassfilterprocess.h)).
+  [processmanager.h](src/process/processmanager.h)'s `ProcessManager` runs the enabled steps in
+  priority order, then applies an `ImageTransform` to reduce the result to edge strips.
+- **[src/transform/](src/transform/)** — `ImageTransform` ([imagetransform.h](src/transform/imagetransform.h))
+  is the base class for turning an image into `ImageStrips` (one thin image per screen edge).
+  Implementations: [simpletransform](src/transform/simpletransform.h) (plain average),
+  [striptransform](src/transform/striptransform.h), [blockstriptransform](src/transform/blockstriptransform.h),
+  [blocktransform](src/transform/blocktransform.h).
+- **[src/leds/leds.h](src/leds/leds.h)** — `LEDS` holds the physical LED layout
+  (`LEDPositions`), converts `ImageStrips` into a single 1-D LED image (`transformToLED`), and
+  applies brightness and colour-temperature correction before handing it to the serial
+  manager.
+- **[src/serial/serialmanager.h](src/serial/serialmanager.h)** — frames and writes the LED
+  image to the serial device, requests firmware version/lux readings, verifies parity/CRC,
+  and automatically retries the connection once a second if the device is disconnected.
+- **[src/app/](src/app/)** — [ambiled.h](src/app/ambiled.h) / [ambiled.cpp](src/app/ambiled.cpp) /
+  [ambiled.ui](src/app/ambiled.ui) hold the main window and system tray integration that wires
+  the managers together, exposes their settings in the UI, and persists them with
+  `QSettings`; [main.cpp](src/app/main.cpp) is the entry point.
+- **[src/common/](src/common/)** — shared value types (`ScreenSize`, `StripSizes`,
+  `ReturnValue<T>` error-handling helper in [types.h](src/common/types.h)) and small
+  utilities ([util.h](src/common/util.h), [pixmaputils.h](src/common/pixmaputils.h),
+  [execthread.h](src/common/execthread.h)) used across the pipeline.
 
 ## Building
 
@@ -92,14 +99,13 @@ make
 ### Windows
 
 Requires Qt 6 with the SerialPort module, and the Windows SDK (for DXGI/Direct3D 9/11, GDI,
-WIC and COM, used by the Windows capture backends). Open
-`ambiled_desktop.sln`/`ambiled_desktop.vcxproj` in Visual Studio, or run:
+WIC and COM, used by the Windows capture backends). Build with the Qt-for-Windows `qmake`:
 
 ```sh
 qmake ambiled_desktop.pro
 ```
 
-with the Qt-for-Windows `qmake` and build with `nmake`/`jom`.
+and then `nmake`/`jom`.
 
 The platform-specific capture backends and libraries are scoped in
 [ambiled_desktop.pro](ambiled_desktop.pro) with `win32:`/`unix:`, so each platform only links

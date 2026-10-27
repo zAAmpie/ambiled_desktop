@@ -1,6 +1,2 @@
 ambiled_desktop.pro*.user*
-.vs
-debug/
-release/
-x64/
 build-linux/

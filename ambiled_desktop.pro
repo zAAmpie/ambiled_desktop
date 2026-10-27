@@ -12,58 +12,67 @@ unix: LIBS += -lX11 -lXext
 # In order to do so, uncomment the following line.
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
+INCLUDEPATH += \
+    src/app \
+    src/capture \
+    src/process \
+    src/transform \
+    src/leds \
+    src/serial \
+    src/common
+
 SOURCES += \
-    ambiled.cpp \
-    blackbarprocess.cpp \
-    blockstriptransform.cpp \
-    blocktransform.cpp \
-    dx11screencapture.cpp \
-    dx9screencapture.cpp \
-    dxgiscreencapture.cpp \
-    execthread.cpp \
-    gdiscreencapture.cpp \
-    imageprocess.cpp \
-    imagetransform.cpp \
-    leds.cpp \
-    lowpassfilterprocess.cpp \
-    main.cpp \
-    pixmaputils.cpp \
-    processmanager.cpp \
-    scaleprocess.cpp \
-    screencapture.cpp \
-    screenmanager.cpp \
-    serialmanager.cpp \
-    simpletransform.cpp \
-    striptransform.cpp \
-    util.cpp \
-    x11screencapture.cpp
+    src/app/ambiled.cpp \
+    src/app/main.cpp \
+    src/capture/dx11screencapture.cpp \
+    src/capture/dx9screencapture.cpp \
+    src/capture/dxgiscreencapture.cpp \
+    src/capture/gdiscreencapture.cpp \
+    src/capture/screencapture.cpp \
+    src/capture/screenmanager.cpp \
+    src/capture/x11screencapture.cpp \
+    src/common/execthread.cpp \
+    src/common/pixmaputils.cpp \
+    src/common/util.cpp \
+    src/leds/leds.cpp \
+    src/process/blackbarprocess.cpp \
+    src/process/imageprocess.cpp \
+    src/process/lowpassfilterprocess.cpp \
+    src/process/processmanager.cpp \
+    src/process/scaleprocess.cpp \
+    src/serial/serialmanager.cpp \
+    src/transform/blockstriptransform.cpp \
+    src/transform/blocktransform.cpp \
+    src/transform/imagetransform.cpp \
+    src/transform/simpletransform.cpp \
+    src/transform/striptransform.cpp
 
 HEADERS += \
-    ambiled.h \
-    blackbarprocess.h \
-    blockstriptransform.h \
-    blocktransform.h \
-    dx11screencapture.h \
-    dx9screencapture.h \
-    dxgiscreencapture.h \
-    execthread.h \
-    gdiscreencapture.h \
-    imageprocess.h \
-    imagetransform.h \
-    leds.h \
-    lowpassfilterprocess.h \
-    pixmaputils.h \
-    processmanager.h \
-    scaleprocess.h \
-    screencapture.h \
-    screenmanager.h \
-    serialmanager.h \
-    simpletransform.h \
-    striptransform.h \
-    types.h \
-    util.h \
-    version.h \
-    x11screencapture.h
+    src/app/ambiled.h \
+    src/capture/dx11screencapture.h \
+    src/capture/dx9screencapture.h \
+    src/capture/dxgiscreencapture.h \
+    src/capture/gdiscreencapture.h \
+    src/capture/screencapture.h \
+    src/capture/screenmanager.h \
+    src/capture/x11screencapture.h \
+    src/common/execthread.h \
+    src/common/pixmaputils.h \
+    src/common/types.h \
+    src/common/util.h \
+    src/common/version.h \
+    src/leds/leds.h \
+    src/process/blackbarprocess.h \
+    src/process/imageprocess.h \
+    src/process/lowpassfilterprocess.h \
+    src/process/processmanager.h \
+    src/process/scaleprocess.h \
+    src/serial/serialmanager.h \
+    src/transform/blockstriptransform.h \
+    src/transform/blocktransform.h \
+    src/transform/imagetransform.h \
+    src/transform/simpletransform.h \
+    src/transform/striptransform.h
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
@@ -71,7 +80,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 RESOURCES += \
-    ambiled.qrc
+    src/app/ambiled.qrc
 
 FORMS += \
-    ambiled.ui
+    src/app/ambiled.ui
