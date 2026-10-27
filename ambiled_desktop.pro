@@ -4,7 +4,9 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 CONFIG += c++17
 
-LIBS += -ld3d11 -ld3d9 -lgdi32 -lwindowscodecs -lole32
+win32: LIBS += -ld3d11 -ld3d9 -lgdi32 -lwindowscodecs -lole32
+
+unix: LIBS += -lX11 -lXext
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.

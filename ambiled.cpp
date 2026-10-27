@@ -146,14 +146,20 @@ void AmbiLED::setupGUI()
     connect(ui.refreshRateComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiRefreshRateChanged);
 
     //Set up capture mode
+#ifdef Q_OS_WIN
     ui.captureComboBox->addItem(tr("DXGI"), ScreenCapture::DXGIMode);
     ui.captureComboBox->addItem(tr("DirectX 9"), ScreenCapture::DirectX9Mode);
     ui.captureComboBox->addItem(tr("DirectX 11"), ScreenCapture::DirectX11Mode);
     ui.captureComboBox->addItem(tr("GDI"), ScreenCapture::GDIMode);
+#endif
 #ifdef Q_OS_UNIX
     ui.captureComboBox->addItem(tr("X11"), ScreenCapture::X11Mode);
 #endif
+#ifdef Q_OS_WIN
     ui.captureComboBox->setCurrentIndex(1);
+#else
+    ui.captureComboBox->setCurrentIndex(0);
+#endif
     connect(ui.captureComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiCaptureModeChanged);
 
     //Set up brightness slider
