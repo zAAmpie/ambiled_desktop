@@ -9,7 +9,8 @@
 #include <QMetaEnum>
 
 ProcessManager::ProcessManager(QObject *parent)
-    : QObject(parent), pTransformStats(QStringLiteral("transform")), pTotalStats(QStringLiteral("process.total"))
+    : QObject(parent), pTransformStats(QStringLiteral("transform")), pTotalStats(QStringLiteral("process.total")),
+      pDroppedStats(QStringLiteral("process.dropped")), pReusedStats(QStringLiteral("process.reused"))
 {
     //Create default priorities - first in the enum gets executed first
     const QMetaEnum metaEnum = QMetaEnum::fromType<ImageProcess::ProcessType>();
@@ -54,6 +55,7 @@ void ProcessManager::setEnabledProcess(ImageProcess::ProcessType type, bool enab
     {
         pProcessList.removeAt(index);
     }
+    invalidateLastStrips();
 
     pMutex.unlock();
 }
@@ -67,6 +69,7 @@ void ProcessManager::setProcessPriority(ImageProcess::ProcessType type, int prio
 
     //Re-sort list now that priority has changed
     sortProcessList();
+    invalidateLastStrips();
     pMutex.unlock();
 }
 
@@ -93,6 +96,7 @@ void ProcessManager::setProcessParameters(ImageProcess::ProcessType type, const 
     int index = indexOfProcess(type);
     if (index != -1)
         pProcessList.at(index)->setParameters(parameters);
+    invalidateLastStrips();
     pMutex.unlock();
 }
 
@@ -138,12 +142,54 @@ void ProcessManager::setTransform(ImageTransform::TransformType type)
         pTransform = std::make_unique<BlockTransform>();
         break;
     }
+    invalidateLastStrips();
     pMutex.unlock();
 }
 
-//Process the input screen and provide an LED output
+//Queue a screen for processing - see header. Runs on the caller's thread.
 void ProcessManager::startProcess(QImage screen, StripSizes sizes)
 {
+    QMutexLocker locker(&pPendingMutex);
+    if (!pPendingFrame.isNull())
+        pDroppedStats.addEvent(); //Previous frame never got processed - replaced below
+
+    pPendingFrame = std::move(screen);
+    pPendingSizes = sizes;
+
+    //Only ever one processing call in flight on the process thread's event queue
+    if (!pProcessScheduled)
+    {
+        pProcessScheduled = true;
+        QMetaObject::invokeMethod(this, &ProcessManager::processPendingFrame, Qt::QueuedConnection);
+    }
+}
+
+//Runs on the process thread: process the input screen and provide an LED output
+void ProcessManager::processPendingFrame()
+{
+    QImage screen;
+    StripSizes sizes;
+    {
+        QMutexLocker locker(&pPendingMutex);
+        screen = std::move(pPendingFrame);
+        pPendingFrame = QImage();
+        sizes = pPendingSizes;
+        pProcessScheduled = false;
+    }
+    if (screen.isNull())
+        return;
+
+    //Held throughout, so the GUI thread can't change the process list/transform mid-frame
+    QMutexLocker locker(&pMutex);
+
+    if (canReuseLastStrips(screen, sizes))
+    {
+        //Still emit, so downstream (LEDs, serial) behaves exactly as if the frame had been processed
+        pReusedStats.addEvent();
+        emit readyProcess(pLastStrips);
+        return;
+    }
+
     ImageStrips outputStrips;
     {
         PerfTimer totalTimer(pTotalStats);
@@ -162,8 +208,25 @@ void ProcessManager::startProcess(QImage screen, StripSizes sizes)
         outputStrips = pTransform->transform(tempImage, sizes);
     }
 
+    pLastFrameKey = screen.cacheKey();
+    pLastSizes = sizes;
+    pLastStrips = outputStrips;
+
     //Signals when processing has been completed
     emit readyProcess(outputStrips);
+}
+
+//Can the last output be reused as-is for this input? - call with pMutex held
+bool ProcessManager::canReuseLastStrips(const QImage &screen, const StripSizes &sizes) const
+{
+    if (pLastFrameKey == 0 || screen.cacheKey() != pLastFrameKey || sizes != pLastSizes)
+        return false;
+
+    //A stateful process (e.g. the low-pass filter) still needs every tick to converge
+    for (const ImageProcess *process : pProcessList)
+        if (process->isStateful())
+            return false;
+    return true;
 }
 
 

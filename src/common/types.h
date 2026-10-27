@@ -60,6 +60,9 @@ struct StripSizes
 
     //Zero values indicate unset
     bool isSet() const {return top > 0 || bottom > 0 || left > 0 || right > 0;}
+
+    bool operator==(const StripSizes &rhs) const {return top == rhs.top && bottom == rhs.bottom && left == rhs.left && right == rhs.right;}
+    bool operator!=(const StripSizes &rhs) const {return !operator==(rhs);}
 };
 
 

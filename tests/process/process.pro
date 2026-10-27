@@ -7,6 +7,8 @@ TEMPLATE = app
 
 INCLUDEPATH += \
     ../../src/process \
+    ../../src/transform \
+    ../../src/leds \
     ../../src/common
 
 SOURCES += \
@@ -14,12 +16,21 @@ SOURCES += \
     ../../src/process/imageprocess.cpp \
     ../../src/process/blackbarprocess.cpp \
     ../../src/process/scaleprocess.cpp \
-    ../../src/process/lowpassfilterprocess.cpp
+    ../../src/process/lowpassfilterprocess.cpp \
+    ../../src/process/processmanager.cpp \
+    ../../src/transform/imagetransform.cpp \
+    ../../src/transform/simpletransform.cpp \
+    ../../src/transform/striptransform.cpp \
+    ../../src/transform/blockstriptransform.cpp \
+    ../../src/transform/blocktransform.cpp \
+    ../../src/common/perfstats.cpp
 
 HEADERS += \
     ../../src/process/imageprocess.h \
     ../../src/process/blackbarprocess.h \
     ../../src/process/scaleprocess.h \
     ../../src/process/lowpassfilterprocess.h \
+    ../../src/process/processmanager.h \
+    ../../src/common/perfstats.h \
     ../../src/common/types.h \
     ../../src/common/util.h

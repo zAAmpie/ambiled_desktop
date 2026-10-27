@@ -17,6 +17,7 @@ public:
     ~LowPassFilterProcess();
 
     ProcessType type() const override {return ProcessType::LowPassFilter;}
+    bool isStateful() const override {return true;}
 
     //Process the input image and return a filtered output
     QImage process(QImage inputImage) override;

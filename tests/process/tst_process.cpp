@@ -5,6 +5,8 @@
 #include "blackbarprocess.h"
 #include "scaleprocess.h"
 #include "lowpassfilterprocess.h"
+#include "processmanager.h"
+#include <QSignalSpy>
 
 namespace {
 
@@ -31,6 +33,9 @@ private slots:
     void lowPassFilterProcess_handlesRepeatedCalls();
     void lowPassFilterProcess_smoothsSubsequentFrames();
     void blackBarProcess_parametersRoundTrip();
+    void processManager_keepsOnlyLatestPendingFrame();
+    void processManager_reusesOutputForUnchangedFrame();
+    void processManager_doesNotReuseWithStatefulProcess();
 };
 
 void TstProcess::blackBarProcess_removesBars()
@@ -166,6 +171,65 @@ void TstProcess::blackBarProcess_parametersRoundTrip()
     parameters = process.parameters();
     QCOMPARE(parameters.value(QStringLiteral("scanThresholdPercentage")).toInt(), 10);
     QCOMPARE(parameters.value(QStringLiteral("blackValueThreshold")).toInt(), 20);
+}
+
+namespace {
+const StripSizes ManagerSizes(4, 4, 3, 3);
+}
+
+void TstProcess::processManager_keepsOnlyLatestPendingFrame()
+{
+    ProcessManager manager;
+    QSignalSpy spy(&manager, &ProcessManager::readyProcess);
+
+    //Three frames arrive before the process thread (here: this thread's event loop) gets a turn
+    manager.startProcess(makeSolidImage(40, 30, qRgb(255, 0, 0)), ManagerSizes);
+    manager.startProcess(makeSolidImage(40, 30, qRgb(0, 255, 0)), ManagerSizes);
+    manager.startProcess(makeSolidImage(40, 30, qRgb(0, 0, 255)), ManagerSizes);
+    QCoreApplication::processEvents();
+
+    QCOMPARE(spy.count(), 1);
+    ImageStrips strips = spy.at(0).at(0).value<ImageStrips>();
+    QCOMPARE(strips.topLine.pixel(0, 0), qRgb(0, 0, 255)); //Only the newest frame was processed
+}
+
+void TstProcess::processManager_reusesOutputForUnchangedFrame()
+{
+    ProcessManager manager;
+    QSignalSpy spy(&manager, &ProcessManager::readyProcess);
+    QImage frame = makeSolidImage(40, 30, qRgb(10, 20, 30));
+
+    manager.startProcess(frame, ManagerSizes);
+    QCoreApplication::processEvents();
+    manager.startProcess(frame, ManagerSizes);
+    QCoreApplication::processEvents();
+
+    //Still emitted every time, but the second is the very same (shared) output, not a recomputation
+    QCOMPARE(spy.count(), 2);
+    QCOMPARE(spy.at(1).at(0).value<ImageStrips>().topLine.cacheKey(), spy.at(0).at(0).value<ImageStrips>().topLine.cacheKey());
+
+    //A changed configuration must force recomputation even for the same frame
+    manager.setTransform(ImageTransform::SimpleTransform);
+    manager.startProcess(frame, ManagerSizes);
+    QCoreApplication::processEvents();
+    QCOMPARE(spy.count(), 3);
+    QVERIFY(spy.at(2).at(0).value<ImageStrips>().topLine.cacheKey() != spy.at(1).at(0).value<ImageStrips>().topLine.cacheKey());
+}
+
+void TstProcess::processManager_doesNotReuseWithStatefulProcess()
+{
+    ProcessManager manager;
+    manager.enableProcess(ImageProcess::LowPassFilter);
+    QSignalSpy spy(&manager, &ProcessManager::readyProcess);
+    QImage frame = makeSolidImage(40, 30, qRgb(10, 20, 30));
+
+    manager.startProcess(frame, ManagerSizes);
+    QCoreApplication::processEvents();
+    manager.startProcess(frame, ManagerSizes);
+    QCoreApplication::processEvents();
+
+    QCOMPARE(spy.count(), 2);
+    QVERIFY(spy.at(1).at(0).value<ImageStrips>().topLine.cacheKey() != spy.at(0).at(0).value<ImageStrips>().topLine.cacheKey());
 }
 
 QTEST_GUILESS_MAIN(TstProcess)

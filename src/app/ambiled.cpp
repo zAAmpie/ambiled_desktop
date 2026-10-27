@@ -72,7 +72,8 @@ AmbiLED::AmbiLED(QWidget *parent)
     pProcessManager = new ProcessManager();
     connect(pProcessManager, &ProcessManager::readyProcess, this, &AmbiLED::processManagerReadyProcess);
     connect(pProcessManager, &ProcessManager::failed, this, &AmbiLED::processManagerFailed);
-    connect(this, &AmbiLED::processManagerStartProcess, pProcessManager, &ProcessManager::startProcess);
+    //Direct: startProcess() is thread-safe and does its own latest-frame-wins handoff to the process thread
+    connect(this, &AmbiLED::processManagerStartProcess, pProcessManager, &ProcessManager::startProcess, Qt::DirectConnection);
     uiAverageMethodComboChanged(ui.averageMethodComboBox->currentIndex());
     pProcessManager->setEnabledProcess(ImageProcess::BlackBarRemoval, true); //Set black bar removal by default
 

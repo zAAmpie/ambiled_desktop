@@ -50,7 +50,9 @@ public:
     //Only one transform can be used at a given point (1 - 1) - thread-safe
     void setTransform(ImageTransform::TransformType type);
 
-    //Process the input screen and provide an LED output
+    //Queue a screen for processing into an LED output - thread-safe, meant to be called directly from
+    //the producer's thread. Only the newest frame is ever kept: if one is still waiting to be processed
+    //it's replaced rather than queued behind, so a slow pipeline drops frames instead of adding latency.
     void startProcess(QImage screen, StripSizes sizes);
 signals:
     //Signals when processing has been completed
@@ -59,6 +61,13 @@ signals:
     //Failure
     void failed(QString message);
 private:
+    //Runs on the process thread: processes whichever frame is pending
+    void processPendingFrame();
+    //Can the last output be reused as-is for this input (same frame, sizes and configuration)?
+    bool canReuseLastStrips(const QImage &screen, const StripSizes &sizes) const;
+    //Any configuration change means the last output can no longer be reused - call with pMutex held
+    void invalidateLastStrips() {pLastFrameKey = 0;}
+
     //Resorts the process list by priority
     void sortProcessList();
     //Checks if process exists in the process list and returns the index
@@ -76,5 +85,19 @@ private:
     PerfStats pTotalStats;
 
     mutable QMutex pMutex;
+
+    //Latest-frame-wins handoff from startProcess() to processPendingFrame()
+    QMutex pPendingMutex;
+    QImage pPendingFrame;
+    StripSizes pPendingSizes;
+    bool pProcessScheduled = false;
+
+    //Last processed frame and its output, for reusing when the frame hasn't changed - guarded by pMutex
+    qint64 pLastFrameKey = 0;
+    StripSizes pLastSizes;
+    ImageStrips pLastStrips;
+
+    PerfStats pDroppedStats;
+    PerfStats pReusedStats;
 };
 

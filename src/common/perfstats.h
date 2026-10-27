@@ -17,6 +17,8 @@ public:
 
     //Record one sample, and log + reset if the report interval has elapsed
     void addSample(qint64 nsecs);
+    //Count an untimed event (only the n and rate columns are meaningful), if lcPerf is enabled
+    void addEvent();
 
 private:
     void report();

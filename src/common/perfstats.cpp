@@ -17,6 +17,13 @@ void PerfStats::addSample(qint64 nsecs)
         report();
 }
 
+//Count an untimed event, if lcPerf is enabled
+void PerfStats::addEvent()
+{
+    if (lcPerf().isDebugEnabled())
+        addSample(0);
+}
+
 //Log the statistics gathered over the last interval and start a new one
 void PerfStats::report()
 {

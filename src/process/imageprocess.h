@@ -45,6 +45,10 @@ public:
     //Virtual function that processes an input image into an output
     virtual QImage process(QImage inputImage) = 0;
 
+    //Whether output depends on previous frames (not just the current input) - if so, an unchanged
+    //input frame still has to be processed rather than reusing the last result
+    virtual bool isStateful() const {return false;}
+
     //Generic configuration contract: current parameter values, and a way to update them live.
     //Subclasses with tunable parameters override both; the UI builds its config pages purely
     //from these rather than needing per-type knowledge in ProcessManager or AmbiLED.
