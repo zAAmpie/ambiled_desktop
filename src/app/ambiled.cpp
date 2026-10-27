@@ -546,6 +546,13 @@ void AmbiLED::uiTrayClicked(QSystemTrayIcon::ActivationReason reason)
     }
 }
 
+//Quit was selected from the tray menu
+void AmbiLED::uiQuitTriggered()
+{
+    writeSettings();
+    qApp->quit();
+}
+
 //===== SCREEN MANAGER SLOTS FOR SIGNALS =====
 //Final processed image is ready
 void AmbiLED::screenManagerReadyFrame(QImage screenImage)
@@ -760,7 +767,7 @@ void AmbiLED::createActions()
 {
     //Create all the relevant actions and their signals
     pQuitAction = new QAction(tr("&Quit"), this);
-    connect(pQuitAction, &QAction::triggered, this, &AmbiLED::close);
+    connect(pQuitAction, &QAction::triggered, this, &AmbiLED::uiQuitTriggered);
 
     pConfigureAction = new QAction(tr("&Configure"), this);
     connect(pConfigureAction, &QAction::triggered, this, &AmbiLED::showNormal);

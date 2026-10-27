@@ -126,6 +126,8 @@ private:
     void uiProcessListSelectionChanged();
     //Clicked on system tray
     void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
+    //Quit was selected from the tray menu
+    void uiQuitTriggered();
 
     //===== CLASS FUNCTIONS =====
     //Display image on label
