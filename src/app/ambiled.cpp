@@ -64,6 +64,7 @@ AmbiLED::AmbiLED(QWidget *parent)
 
     //Move capturing of the screen to another thread. Will need to see if that's possible with X11
     pCaptureThread = new ExecThread();
+    pCaptureThread->setObjectName(QStringLiteral("ambiled-capture")); //Becomes the OS thread name - visible in perf/pidstat/top
     pScreenManager->moveToThread(pCaptureThread);
     pCaptureThread->start();
 
@@ -81,6 +82,7 @@ AmbiLED::AmbiLED(QWidget *parent)
 
     //Try moving process manager to another thread
     pProcessThread = new ExecThread();
+    pProcessThread->setObjectName(QStringLiteral("ambiled-process"));
     pProcessManager->moveToThread(pProcessThread);
     pProcessThread->start();
 
@@ -822,6 +824,7 @@ void AmbiLED::uiQuitTriggered()
 void AmbiLED::screenManagerReadyFrame(QImage screenImage)
 {
     Q_ASSERT(!screenImage.isNull());
+    PerfTimer timer(pGuiFrameStats);
 
     //Display fullscreen on UI
     if (pFullscreenMode)
@@ -856,6 +859,7 @@ void AmbiLED::screenManagerWaylandRestoreTokenUpdated(QString token)
 void AmbiLED::processManagerReadyProcess(ImageStrips strips)
 {
     Q_ASSERT(!strips.isNull());
+    PerfTimer timer(pGuiStripsStats);
 
     //Display the strips on the UI
     displayStrips(strips);

@@ -29,7 +29,8 @@ bool isWaylandSession()
 
 //Constructor
 ScreenManager::ScreenManager(int frameRate, QString waylandRestoreToken, QObject *parent)
-    : QObject(parent), pFrameRate(frameRate), pTestPatternGenerationEnabled(false), pWaylandRestoreToken(std::move(waylandRestoreToken))
+    : QObject(parent), pFrameRate(frameRate), pTestPatternGenerationEnabled(false), pWaylandRestoreToken(std::move(waylandRestoreToken)),
+      pCaptureStats(QStringLiteral("capture"))
 {
     Q_ASSERT(frameRate > 0);
     pFrameRate = std::clamp(frameRate, 1, 1000); //Just to be safe, clamp the frame rate
@@ -166,7 +167,7 @@ void ScreenManager::frameTimerElapsed()
     {
         //Update screen as normal
         pMutex.lock(); //Lock here just in case we're trying to destroy the pScreen object while capturing
-        CaptureValue captureValue = pScreen->capture();
+        CaptureValue captureValue = [this] {PerfTimer timer(pCaptureStats); return pScreen->capture();}();
         pMutex.unlock();
         if (captureValue.success() && !captureValue.value.isNull())
             emit readyFrame(captureValue.value);

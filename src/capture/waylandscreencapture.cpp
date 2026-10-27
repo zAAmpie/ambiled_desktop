@@ -53,7 +53,8 @@ void ensurePipeWireInitialised()
 WaylandScreenCapture::WaylandScreenCapture(QString restoreToken)
     : QObject(), ScreenCapture(), pRestoreToken(std::move(restoreToken)), pPermanentlyFailed(false),
       pLastError(QStringLiteral("WaylandScreenCapture: Waiting for screen-share permission")),
-      pLoop(nullptr), pContext(nullptr), pCore(nullptr), pStream(nullptr), pFormatNegotiated(false)
+      pLoop(nullptr), pContext(nullptr), pCore(nullptr), pStream(nullptr), pFormatNegotiated(false),
+      pPipeWireCopyStats(QStringLiteral("wayland.pw-copy"))
 {
     ensurePortalStreamTypeRegistered();
     startNegotiation();
@@ -446,6 +447,7 @@ void WaylandScreenCapture::onStreamParamChanged(void *data, uint32_t id, const s
 void WaylandScreenCapture::onStreamProcess(void *data)
 {
     auto *self = static_cast<WaylandScreenCapture *>(data);
+    PerfTimer timer(self->pPipeWireCopyStats);
 
     pw_buffer *buffer = pw_stream_dequeue_buffer(self->pStream);
     if (!buffer)

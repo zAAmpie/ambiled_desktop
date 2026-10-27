@@ -8,7 +8,8 @@
 #include "striptransform.h"
 #include <QMetaEnum>
 
-ProcessManager::ProcessManager(QObject *parent) : QObject(parent)
+ProcessManager::ProcessManager(QObject *parent)
+    : QObject(parent), pTransformStats(QStringLiteral("transform")), pTotalStats(QStringLiteral("process.total"))
 {
     //Create default priorities - first in the enum gets executed first
     const QMetaEnum metaEnum = QMetaEnum::fromType<ImageProcess::ProcessType>();
@@ -16,6 +17,7 @@ ProcessManager::ProcessManager(QObject *parent) : QObject(parent)
     {
         ImageProcess::ProcessType type = static_cast<ImageProcess::ProcessType>(metaEnum.value(i));
         pProcessStatus.insert(type, ProcessStatus(i, false));
+        pProcessStats.try_emplace(type, QStringLiteral("process.%1").arg(QLatin1String(metaEnum.key(i))));
 
         //Seed default parameter values generically from a throwaway instance, rather than
         //duplicating each process's own defaults here
@@ -142,15 +144,23 @@ void ProcessManager::setTransform(ImageTransform::TransformType type)
 //Process the input screen and provide an LED output
 void ProcessManager::startProcess(QImage screen, StripSizes sizes)
 {
-    //Run through all processing steps in priority order
-    QImage tempImage = screen;
-    for (int i = 0; i < pProcessList.size(); ++i)
+    ImageStrips outputStrips;
     {
-        tempImage = pProcessList.at(i)->process(tempImage);
-    }
+        PerfTimer totalTimer(pTotalStats);
 
-    //Transform to strips
-    ImageStrips outputStrips = pTransform->transform(tempImage, sizes);
+        //Run through all processing steps in priority order
+        QImage tempImage = screen;
+        for (int i = 0; i < pProcessList.size(); ++i)
+        {
+            ImageProcess *process = pProcessList.at(i);
+            PerfTimer timer(pProcessStats.at(process->type()));
+            tempImage = process->process(tempImage);
+        }
+
+        //Transform to strips
+        PerfTimer transformTimer(pTransformStats);
+        outputStrips = pTransform->transform(tempImage, sizes);
+    }
 
     //Signals when processing has been completed
     emit readyProcess(outputStrips);

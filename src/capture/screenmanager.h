@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QMutex>
 #include "screencapture.h"
+#include "perfstats.h"
 
 #define DEFAULT_FRAMERATE 60
 
@@ -68,5 +69,7 @@ private:
     int pFrameRate;
     bool pTestPatternGenerationEnabled;
     QString pWaylandRestoreToken;
+
+    PerfStats pCaptureStats;
 };
 

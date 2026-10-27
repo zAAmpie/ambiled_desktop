@@ -2,9 +2,11 @@
 
 #include "imageprocess.h"
 #include "imagetransform.h"
+#include "perfstats.h"
 #include <QMap>
 #include <QObject>
 #include <QMutex>
+#include <map>
 
 struct ProcessStatus
 {
@@ -68,6 +70,10 @@ private:
     QMap<ImageProcess::ProcessType, ProcessStatus> pProcessStatus;
     QMap<ImageProcess::ProcessType, QVariantMap> pProcessParameters;
     std::unique_ptr<ImageTransform> pTransform;
+
+    std::map<ImageProcess::ProcessType, PerfStats> pProcessStats;
+    PerfStats pTransformStats;
+    PerfStats pTotalStats;
 
     mutable QMutex pMutex;
 };

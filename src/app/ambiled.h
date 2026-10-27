@@ -15,6 +15,7 @@
 #include "screenmanager.h"
 #include "processmanager.h"
 #include "leds.h"
+#include "perfstats.h"
 
 Q_DECLARE_METATYPE(LEDPositions)
 Q_DECLARE_METATYPE(ImageStrips)
@@ -208,6 +209,10 @@ private:
     //Timers
     QElapsedTimer *pElapsedFrameTimer;
     QElapsedTimer *pElapsedSerialTimer;
+
+    //GUI-thread perf stats (see perfstats.h)
+    PerfStats pGuiFrameStats{QStringLiteral("gui.frame")};
+    PerfStats pGuiStripsStats{QStringLiteral("gui.strips")};
     QTimer *pUiUpdateTimer;
 
     //Local variables

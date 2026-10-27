@@ -1,6 +1,7 @@
 #pragma once
 
 #include "screencapture.h"
+#include "perfstats.h"
 class WaylandScreenCapture;
 
 #ifdef Q_OS_UNIX
@@ -78,5 +79,8 @@ private:
     //Latest decoded frame, written from the PipeWire thread and read from capture()
     QMutex pFrameMutex;
     QImage pLatestFrame;
+
+    //Only touched from the PipeWire thread
+    PerfStats pPipeWireCopyStats;
 };
 #endif

@@ -35,6 +35,7 @@ SOURCES += \
     src/capture/waylandscreencapture.cpp \
     src/capture/x11screencapture.cpp \
     src/common/execthread.cpp \
+    src/common/perfstats.cpp \
     src/common/pixmaputils.cpp \
     src/common/util.cpp \
     src/leds/leds.cpp \
@@ -61,6 +62,7 @@ HEADERS += \
     src/capture/waylandscreencapture.h \
     src/capture/x11screencapture.h \
     src/common/execthread.h \
+    src/common/perfstats.h \
     src/common/pixmaputils.h \
     src/common/types.h \
     src/common/util.h \
