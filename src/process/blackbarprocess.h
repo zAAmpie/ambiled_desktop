@@ -16,6 +16,7 @@ public:
     ~BlackBarProcess();
 
     ProcessType type() const override {return ProcessType::BlackBarRemoval;}
+    Stage stage() const override {return BeforeTransform;}
 
     //Process the image and remove black bars
     QImage process(QImage inputImage) override;

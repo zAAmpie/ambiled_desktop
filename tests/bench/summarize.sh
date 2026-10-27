@@ -6,6 +6,6 @@ set -euo pipefail
 bench="$1"; shift
 "$bench" -minimumvalue 200 "$@" 2>&1 | awk '
     /^QINFO .*cpu:/ { match($0, /cpu: ([^ ]+)/, m); cpu = m[1] }
-    /^RESULT/       { match($0, /Bench::([^:]+):"([^"]+)"/, n); getline;
+    /^RESULT/       { match($0, /Bench::([^:]+):("([^"]+)")?/, n); n[2] = n[3]; getline;
                       printf "%-30s %-6s wall %9.4f ms   cpu %9.4f ms\n", n[1], n[2], $1, cpu }
 '

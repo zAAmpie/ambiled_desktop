@@ -139,8 +139,19 @@ private slots:
     void processSampleScale() {ScaleProcess process(ImageProcess::SampleScale, 0.5f); benchProcess(process);}
     void processLinearScale_data() {addResolutionRows();}
     void processLinearScale() {ScaleProcess process(ImageProcess::LinearScale, 0.5f); benchProcess(process);}
-    void processLowPassFilter_data() {addResolutionRows();}
-    void processLowPassFilter() {LowPassFilterProcess process; benchProcess(process);}
+    //Runs after the transform, on all strips packed into one row - so its input doesn't depend on resolution
+    void processLowPassFilter()
+    {
+        QImage strips = makeNoiseFrame(QSize(BenchSizes.top + BenchSizes.bottom + BenchSizes.left + BenchSizes.right, 1));
+        LowPassFilterProcess process;
+        CpuMeter meter;
+        QBENCHMARK
+        {
+            meter.tick();
+            QImage output = process.process(strips);
+            Q_UNUSED(output);
+        }
+    }
 
     //Wayland capture's copy-out of the held PipeWire buffer (factor 4), vs the plain full-frame copy it replaced
     void captureDownsample4_data() {addResolutionRows();}

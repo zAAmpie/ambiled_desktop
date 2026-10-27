@@ -68,6 +68,11 @@ private:
     //Any configuration change means the last output can no longer be reused - call with pMutex held
     void invalidateLastStrips() {pLastFrameKey = 0;}
 
+    //After-transform processes see all strips packed end to end (top, bottom, left, right) into one
+    //1-row image, so a stateful process keeps a single history covering every LED value
+    static QImage packStrips(const ImageStrips &strips);
+    static void unpackStrips(const QImage &packed, ImageStrips &strips);
+
     //Resorts the process list by priority
     void sortProcessList();
     //Checks if process exists in the process list and returns the index

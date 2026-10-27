@@ -194,18 +194,35 @@ void ProcessManager::processPendingFrame()
     {
         PerfTimer totalTimer(pTotalStats);
 
-        //Run through all processing steps in priority order
+        //Run through all before-transform processing steps in priority order
         QImage tempImage = screen;
-        for (int i = 0; i < pProcessList.size(); ++i)
+        for (ImageProcess *process : std::as_const(pProcessList))
         {
-            ImageProcess *process = pProcessList.at(i);
+            if (process->stage() != ImageProcess::BeforeTransform)
+                continue;
             PerfTimer timer(pProcessStats.at(process->type()));
             tempImage = process->process(tempImage);
         }
 
         //Transform to strips
-        PerfTimer transformTimer(pTransformStats);
-        outputStrips = pTransform->transform(tempImage, sizes);
+        {
+            PerfTimer transformTimer(pTransformStats);
+            outputStrips = pTransform->transform(tempImage, sizes);
+        }
+
+        //Then the after-transform steps, on all strips packed into one image (only packed if needed)
+        QImage packedStrips;
+        for (ImageProcess *process : std::as_const(pProcessList))
+        {
+            if (process->stage() != ImageProcess::AfterTransform)
+                continue;
+            if (packedStrips.isNull())
+                packedStrips = packStrips(outputStrips);
+            PerfTimer timer(pProcessStats.at(process->type()));
+            packedStrips = process->process(packedStrips);
+        }
+        if (!packedStrips.isNull())
+            unpackStrips(packedStrips, outputStrips);
     }
 
     pLastFrameKey = screen.cacheKey();
@@ -214,6 +231,41 @@ void ProcessManager::processPendingFrame()
 
     //Signals when processing has been completed
     emit readyProcess(outputStrips);
+}
+
+//Packs all four strips end to end (top, bottom, left, right) into one 1-row RGB32 image
+QImage ProcessManager::packStrips(const ImageStrips &strips)
+{
+    const QImage parts[] = {strips.topLine.convertToFormat(QImage::Format_RGB32), strips.bottomLine.convertToFormat(QImage::Format_RGB32),
+                            strips.leftLine.convertToFormat(QImage::Format_RGB32), strips.rightLine.convertToFormat(QImage::Format_RGB32)};
+
+    int totalPixels = 0;
+    for (const QImage &part : parts)
+        totalPixels += part.width() * part.height();
+
+    QImage packed(totalPixels, 1, QImage::Format_RGB32);
+    QRgb *out = reinterpret_cast<QRgb *>(packed.scanLine(0));
+    for (const QImage &part : parts)
+        for (int y = 0; y < part.height(); ++y)
+            out = std::copy_n(reinterpret_cast<const QRgb *>(part.constScanLine(y)), part.width(), out);
+
+    return packed;
+}
+
+//Inverse of packStrips - splits a packed image back into strips of the sizes already in `strips`
+void ProcessManager::unpackStrips(const QImage &packed, ImageStrips &strips)
+{
+    const QRgb *in = reinterpret_cast<const QRgb *>(packed.constScanLine(0));
+    for (QImage *part : {&strips.topLine, &strips.bottomLine, &strips.leftLine, &strips.rightLine})
+    {
+        QImage unpacked(part->size(), QImage::Format_RGB32);
+        for (int y = 0; y < unpacked.height(); ++y)
+        {
+            std::copy_n(in, unpacked.width(), reinterpret_cast<QRgb *>(unpacked.scanLine(y)));
+            in += unpacked.width();
+        }
+        *part = unpacked;
+    }
 }
 
 //Can the last output be reused as-is for this input? - call with pMutex held

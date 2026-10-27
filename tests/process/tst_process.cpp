@@ -36,6 +36,9 @@ private slots:
     void processManager_keepsOnlyLatestPendingFrame();
     void processManager_reusesOutputForUnchangedFrame();
     void processManager_doesNotReuseWithStatefulProcess();
+    void lowPassFilterProcess_convergesInBothDirections();
+    void blackBarProcess_outputOutlivesInput();
+    void processManager_appliesAfterTransformProcessToStrips();
 };
 
 void TstProcess::blackBarProcess_removesBars()
@@ -154,6 +157,88 @@ void TstProcess::lowPassFilterProcess_smoothsSubsequentFrames()
     QImage result = process.process(second);
 
     QVERIFY(result.pixel(0, 0) != second.pixel(0, 0));
+}
+
+void TstProcess::lowPassFilterProcess_convergesInBothDirections()
+{
+    //A real (feedback) low pass must keep moving towards a held input until it gets there - upwards
+    //and downwards. Downwards used to wrap around, since a negative difference was cast to a byte.
+    LowPassFilterProcess process(60); //High cutoff, so a few ms between calls is enough to converge
+    const QRgb dark = qRgb(10, 20, 30);
+    const QRgb bright = qRgb(250, 240, 230);
+
+    process.process(makeSolidImage(4, 1, dark));
+
+    QImage result;
+    int previousRed = qRed(dark);
+    for (int i = 0; i < 100 && (result.isNull() || result.pixel(0, 0) != bright); ++i)
+    {
+        QTest::qWait(2);
+        result = process.process(makeSolidImage(4, 1, bright));
+        QVERIFY2(qRed(result.pixel(0, 0)) >= previousRed, "fading up must never move away from the target");
+        previousRed = qRed(result.pixel(0, 0));
+    }
+    QCOMPARE(result.pixel(0, 0), bright);
+
+    for (int i = 0; i < 100 && result.pixel(0, 0) != dark; ++i)
+    {
+        QTest::qWait(2);
+        result = process.process(makeSolidImage(4, 1, dark));
+        QVERIFY2(qRed(result.pixel(0, 0)) <= previousRed, "fading down must never move away from the target");
+        previousRed = qRed(result.pixel(0, 0));
+    }
+    QCOMPARE(result.pixel(0, 0), dark);
+}
+
+void TstProcess::blackBarProcess_outputOutlivesInput()
+{
+    //Regression test: the cropped output used to point into the input's pixels without holding a
+    //reference to them, so it dangled as soon as the input was released
+    QImage result;
+    {
+        QImage image = makeSolidImage(10, 50, qRgb(255, 0, 0));
+        for (int y = 0; y < 5; ++y)
+        {
+            std::fill_n(reinterpret_cast<QRgb *>(image.scanLine(y)), 10, qRgb(0, 0, 0));
+            std::fill_n(reinterpret_cast<QRgb *>(image.scanLine(49 - y)), 10, qRgb(0, 0, 0));
+        }
+        BlackBarProcess process;
+        result = process.process(image);
+    }
+    //Overwrite freed heap memory with fresh allocations, so a dangling read would show garbage
+    std::vector<QImage> churn;
+    for (int i = 0; i < 8; ++i)
+        churn.push_back(makeSolidImage(10, 50, qRgb(0, 0, 255)));
+
+    QCOMPARE(result.height(), 40);
+    for (int y = 0; y < result.height(); ++y)
+        for (int x = 0; x < result.width(); ++x)
+            QCOMPARE(result.pixel(x, y), qRgb(255, 0, 0));
+}
+
+void TstProcess::processManager_appliesAfterTransformProcessToStrips()
+{
+    //The low-pass filter runs on the strips, not the screen: switching the screen colour must reach
+    //the strips gradually, while the strips keep their sizes
+    ProcessManager manager;
+    manager.enableProcess(ImageProcess::LowPassFilter);
+    QSignalSpy spy(&manager, &ProcessManager::readyProcess);
+    const StripSizes sizes(4, 4, 3, 3);
+
+    manager.startProcess(makeSolidImage(40, 30, qRgb(0, 0, 0)), sizes);
+    QCoreApplication::processEvents();
+    manager.startProcess(makeSolidImage(40, 30, qRgb(255, 255, 255)), sizes);
+    QCoreApplication::processEvents();
+
+    QCOMPARE(spy.count(), 2);
+    ImageStrips strips = spy.at(1).at(0).value<ImageStrips>();
+    QCOMPARE(strips.topLine.size(), QSize(4, 1));
+    QCOMPARE(strips.leftLine.size(), QSize(1, 3));
+    for (const QImage &strip : {strips.topLine, strips.bottomLine, strips.leftLine, strips.rightLine})
+    {
+        QVERIFY(qRed(strip.pixel(0, 0)) < 255); //Not yet fully faded in
+        QCOMPARE(strip.pixel(0, 0), strip.pixel(strip.width() - 1, strip.height() - 1)); //Every LED filtered alike
+    }
 }
 
 void TstProcess::blackBarProcess_parametersRoundTrip()

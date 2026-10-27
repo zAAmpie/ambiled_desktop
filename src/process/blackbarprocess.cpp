@@ -68,10 +68,11 @@ QImage BlackBarProcess::process(QImage inputImage)
     if (reducedHeight == inputImage.height())
         return inputImage;
 
-    //Set some constants
-    int scanLineBytes = inputImage.width() * (inputImage.depth() >> 3); //Number of bytes in a scanline
-
-    return QImage(inputImage.constBits() + topLineSkip * scanLineBytes, inputImage.width(), reducedHeight, QImage::Format_RGB32);;
+    //Zero-copy view of the remaining rows. The view holds its own reference to inputImage (released by
+    //the cleanup function), so the pixels stay alive for as long as the view or anything sharing it does.
+    auto *source = new QImage(inputImage);
+    return QImage(source->constBits() + topLineSkip * source->bytesPerLine(), source->width(), reducedHeight,
+                  source->bytesPerLine(), source->format(), [](void *info) {delete static_cast<QImage *>(info);}, source);
 }
 
 //Test to see if line is black (within a theshold)

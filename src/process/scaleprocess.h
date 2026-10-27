@@ -16,6 +16,7 @@ public:
     ~ScaleProcess();
 
     ProcessType type() const override {return pType;}
+    Stage stage() const override {return BeforeTransform;}
 
     //Scales image using the selected scaler type
     QImage process(QImage inputImage) override;

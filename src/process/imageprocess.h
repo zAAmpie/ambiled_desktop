@@ -17,6 +17,10 @@ public:
     //by name (QMetaEnum key), so reordering here is safe.
     enum ProcessType {SampleScale, LinearScale, CubicScale, BlackBarRemoval, LowPassFilter}; Q_ENUM(ProcessType);
 
+    //Where in the pipeline a process runs: on the captured image before it's transformed into strips,
+    //or afterwards on the strips (all packed end to end into one 1-row image of LED values)
+    enum Stage {BeforeTransform, AfterTransform};
+
     //Describes one user-configurable parameter of a process type, for building generic config UI
     struct ParameterSpec
     {
@@ -41,6 +45,9 @@ public:
 
     //Returns the type
     virtual ProcessType type() const = 0;
+
+    //Returns the pipeline stage this process runs in
+    virtual Stage stage() const = 0;
 
     //Virtual function that processes an input image into an output
     virtual QImage process(QImage inputImage) = 0;
