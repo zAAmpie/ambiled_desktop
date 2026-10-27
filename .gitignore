@@ -3,3 +3,4 @@ ambiled_desktop.pro*.user*
 debug/
 release/
 x64/
+build-linux/
