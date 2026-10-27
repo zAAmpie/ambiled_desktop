@@ -24,7 +24,8 @@ SOURCES += \
     ../../src/transform/simpletransform.cpp \
     ../../src/transform/striptransform.cpp \
     ../../src/transform/blockstriptransform.cpp \
-    ../../src/transform/blocktransform.cpp
+    ../../src/transform/blocktransform.cpp \
+    ../../src/common/imageutils.cpp
 
 HEADERS += \
     ../../src/process/imageprocess.h \
@@ -37,5 +38,6 @@ HEADERS += \
     ../../src/transform/blockstriptransform.h \
     ../../src/transform/blocktransform.h \
     ../../src/leds/leds.h \
+    ../../src/common/imageutils.h \
     ../../src/common/types.h \
     ../../src/common/util.h

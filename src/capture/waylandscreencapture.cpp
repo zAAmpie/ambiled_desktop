@@ -15,6 +15,7 @@
 #include <QDBusArgument>
 #include <QUuid>
 #include <QDebug>
+#include "imageutils.h"
 #include <unistd.h>
 
 namespace {
@@ -54,7 +55,8 @@ WaylandScreenCapture::WaylandScreenCapture(QString restoreToken)
     : QObject(), ScreenCapture(), pRestoreToken(std::move(restoreToken)), pPermanentlyFailed(false),
       pLastError(QStringLiteral("WaylandScreenCapture: Waiting for screen-share permission")),
       pLoop(nullptr), pContext(nullptr), pCore(nullptr), pStream(nullptr), pFormatNegotiated(false),
-      pPipeWireCopyStats(QStringLiteral("wayland.pw-copy"))
+      pHeldBuffer(nullptr), pHeldSequence(0), pFrameSequence(0),
+      pPipeWireFrameStats(QStringLiteral("wayland.pw-frame"))
 {
     ensurePortalStreamTypeRegistered();
     startNegotiation();
@@ -82,7 +84,22 @@ CaptureValue WaylandScreenCapture::capture()
         return CaptureValue(pLastError, pFrame);
 
     QMutexLocker locker(&pFrameMutex);
-    pFrame = pLatestFrame;
+    //Nothing new since the last capture - hand back the same (implicitly shared) image without copying
+    if (!pHeldBuffer || pHeldSequence == pFrameSequence)
+        return CaptureValue(pFrame);
+
+    const spa_data &data = pHeldBuffer->buffer->datas[0];
+    const uchar *source = static_cast<const uchar *>(data.data) + data.chunk->offset;
+
+    //BGRx/RGBx are both 32bpp with the byte order already matching one of Qt's native QImage
+    //formats on a little-endian host - no manual channel shuffling needed, just the right format tag.
+    QImage::Format format = (pVideoInfo.format == SPA_VIDEO_FORMAT_RGBx)
+        ? QImage::Format_RGBX8888
+        : QImage::Format_RGB32; //BGRx (and the default/fallback)
+
+    pFrame = ImageUtils::downsample32(source, static_cast<int>(pVideoInfo.size.width), static_cast<int>(pVideoInfo.size.height),
+                                      data.chunk->stride, format, DownsampleFactor);
+    pFrameSequence = pHeldSequence;
     return CaptureValue(pFrame);
 }
 
@@ -351,6 +368,7 @@ void WaylandScreenCapture::setupPipeWire(int pipewireFd, quint32 nodeId)
         events.version = PW_VERSION_STREAM_EVENTS;
         events.param_changed = &WaylandScreenCapture::onStreamParamChanged;
         events.process = &WaylandScreenCapture::onStreamProcess;
+        events.remove_buffer = &WaylandScreenCapture::onStreamRemoveBuffer;
         events.state_changed = &WaylandScreenCapture::onStreamStateChanged;
         return events;
     }();
@@ -402,6 +420,13 @@ void WaylandScreenCapture::teardownPipeWire()
     if (pLoop)
         pw_thread_loop_lock(pLoop);
 
+    //Forget the held buffer before the stream (which owns it) goes away - taking the frame mutex
+    //also waits out any capture() still copying from it
+    {
+        QMutexLocker locker(&pFrameMutex);
+        pHeldBuffer = nullptr;
+    }
+
     if (pStream)
     {
         pw_stream_destroy(pStream);
@@ -438,41 +463,67 @@ void WaylandScreenCapture::onStreamParamChanged(void *data, uint32_t id, const s
     if (spa_format_video_raw_parse(param, &videoInfo) < 0)
         return;
 
+    //capture() reads pVideoInfo while copying out of the held buffer, which belongs to the old format
+    QMutexLocker locker(&self->pFrameMutex);
+    self->pHeldBuffer = nullptr;
     self->pVideoInfo = videoInfo;
     self->pScreenSize = ScreenSize(static_cast<int>(videoInfo.size.height), static_cast<int>(videoInfo.size.width));
     self->pFormatNegotiated = true;
 }
 
-//Called on the PipeWire thread whenever a new frame buffer is ready to be read
+//Called on the PipeWire thread whenever a new frame buffer is ready to be read. Only swaps the newest
+//buffer in as the held one - the actual (downsampled) copy happens on demand in capture().
 void WaylandScreenCapture::onStreamProcess(void *data)
 {
     auto *self = static_cast<WaylandScreenCapture *>(data);
-    PerfTimer timer(self->pPipeWireCopyStats);
+    PerfTimer timer(self->pPipeWireFrameStats);
 
-    pw_buffer *buffer = pw_stream_dequeue_buffer(self->pStream);
-    if (!buffer)
+    //Drain the queue, keeping only the newest buffer and handing any older ones straight back
+    pw_buffer *newest = nullptr;
+    while (pw_buffer *buffer = pw_stream_dequeue_buffer(self->pStream))
+    {
+        if (newest)
+            pw_stream_queue_buffer(self->pStream, newest);
+        newest = buffer;
+    }
+    if (!newest)
         return;
 
-    spa_buffer *spaBuffer = buffer->buffer;
-    if (spaBuffer->n_datas > 0 && spaBuffer->datas[0].data && self->pFormatNegotiated)
+    //Skip buffers without usable pixels (e.g. cursor-only metadata updates, corrupted frames, or anything
+    //too small for the negotiated size - capture() trusts these bounds when copying)
+    const spa_buffer *spaBuffer = newest->buffer;
+    const spa_data *spaData = spaBuffer->n_datas > 0 ? &spaBuffer->datas[0] : nullptr;
+    qsizetype rowBytes = static_cast<qsizetype>(self->pVideoInfo.size.width) * 4;
+    qsizetype requiredBytes = spaData ? spaData->chunk->stride * static_cast<qsizetype>(self->pVideoInfo.size.height - 1) + rowBytes : 0;
+    if (!self->pFormatNegotiated || !spaData || !spaData->data || spaData->chunk->size == 0
+        || (spaData->chunk->flags & SPA_CHUNK_FLAG_CORRUPTED) || spaData->chunk->stride < rowBytes
+        || spaData->chunk->offset + requiredBytes > spaData->maxsize)
     {
-        int width = static_cast<int>(self->pVideoInfo.size.width);
-        int height = static_cast<int>(self->pVideoInfo.size.height);
-        int stride = static_cast<int>(spaBuffer->datas[0].chunk->stride);
-        const uchar *source = static_cast<const uchar *>(spaBuffer->datas[0].data);
-
-        //BGRx/RGBx are both 32bpp with the byte order already matching one of Qt's native QImage
-        //formats on a little-endian host - no manual channel shuffling needed, just the right format tag.
-        QImage::Format format = (self->pVideoInfo.format == SPA_VIDEO_FORMAT_RGBx)
-            ? QImage::Format_RGBX8888
-            : QImage::Format_RGB32; //BGRx (and the default/fallback)
-
-        QImage frame(source, width, height, stride, format);
-        QMutexLocker locker(&self->pFrameMutex);
-        self->pLatestFrame = frame.copy(); //Deep copy - the source buffer is only valid until queued back below
+        pw_stream_queue_buffer(self->pStream, newest);
+        return;
     }
 
-    pw_stream_queue_buffer(self->pStream, buffer);
+    pw_buffer *previous;
+    {
+        QMutexLocker locker(&self->pFrameMutex);
+        previous = self->pHeldBuffer;
+        self->pHeldBuffer = newest;
+        ++self->pHeldSequence;
+    }
+
+    //Safe outside the lock - capture() only ever reads pHeldBuffer, which no longer points at it
+    if (previous)
+        pw_stream_queue_buffer(self->pStream, previous);
+}
+
+//Called on the PipeWire thread when a buffer is about to be freed (e.g. on renegotiation) - make sure
+//we're not still holding on to it
+void WaylandScreenCapture::onStreamRemoveBuffer(void *data, struct pw_buffer *buffer)
+{
+    auto *self = static_cast<WaylandScreenCapture *>(data);
+    QMutexLocker locker(&self->pFrameMutex);
+    if (self->pHeldBuffer == buffer)
+        self->pHeldBuffer = nullptr;
 }
 
 //Called on the PipeWire thread when the stream's connection state changes

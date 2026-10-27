@@ -12,8 +12,10 @@ class ImageProcess : public QObject
     Q_OBJECT
     /* Base class for all image process types*/
 public:
-    //Default order in list is the default priority, i.e. first will be executed first by default
-    enum ProcessType {BlackBarRemoval, SampleScale, LinearScale, CubicScale, LowPassFilter}; Q_ENUM(ProcessType);
+    //Default order in list is the default priority, i.e. first will be executed first by default.
+    //Scaling comes first so everything after it works on the smaller image. Settings persist types
+    //by name (QMetaEnum key), so reordering here is safe.
+    enum ProcessType {SampleScale, LinearScale, CubicScale, BlackBarRemoval, LowPassFilter}; Q_ENUM(ProcessType);
 
     //Describes one user-configurable parameter of a process type, for building generic config UI
     struct ParameterSpec

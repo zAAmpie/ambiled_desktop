@@ -11,6 +11,7 @@
 #include "striptransform.h"
 #include "blockstriptransform.h"
 #include "blocktransform.h"
+#include "imageutils.h"
 
 namespace {
 
@@ -140,6 +141,34 @@ private slots:
     void processLinearScale() {ScaleProcess process(ImageProcess::LinearScale, 0.5f); benchProcess(process);}
     void processLowPassFilter_data() {addResolutionRows();}
     void processLowPassFilter() {LowPassFilterProcess process; benchProcess(process);}
+
+    //Wayland capture's copy-out of the held PipeWire buffer (factor 4), vs the plain full-frame copy it replaced
+    void captureDownsample4_data() {addResolutionRows();}
+    void captureDownsample4()
+    {
+        QFETCH(QSize, size);
+        const QImage &frame = cachedFrame(size, false);
+        CpuMeter meter;
+        QBENCHMARK
+        {
+            meter.tick();
+            QImage output = ImageUtils::downsample32(frame.constBits(), frame.width(), frame.height(), frame.bytesPerLine(), QImage::Format_RGB32, 4);
+            Q_UNUSED(output);
+        }
+    }
+    void captureFullCopy_data() {addResolutionRows();}
+    void captureFullCopy()
+    {
+        QFETCH(QSize, size);
+        const QImage &frame = cachedFrame(size, false);
+        CpuMeter meter;
+        QBENCHMARK
+        {
+            meter.tick();
+            QImage output = QImage(frame.constBits(), frame.width(), frame.height(), frame.bytesPerLine(), QImage::Format_RGB32).copy();
+            Q_UNUSED(output);
+        }
+    }
 
     //The app's default pipeline: black bar removal followed by the default (block strip) transform
     void pipelineDefault_data() {addResolutionRows();}
