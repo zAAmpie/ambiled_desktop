@@ -23,6 +23,29 @@
                 "isDefault": true
             },
             "problemMatcher": ["$gcc"]
+        },
+        {
+            "label": "qmake configure tests",
+            "type": "shell",
+            "command": "mkdir -p build-tests && cd build-tests && qmake6 ../tests/tests.pro",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "test",
+            "type": "shell",
+            "command": "make -j$(nproc) && make check",
+            "options": {
+                "cwd": "${workspaceFolder}/build-tests"
+            },
+            "dependsOn": "qmake configure tests",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "problemMatcher": ["$gcc"]
         }
     ]
 }

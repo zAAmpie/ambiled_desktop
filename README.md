@@ -111,6 +111,32 @@ The platform-specific capture backends and libraries are scoped in
 [ambiled_desktop.pro](ambiled_desktop.pro) with `win32:`/`unix:`, so each platform only links
 against the libraries it actually needs.
 
+## Testing
+
+Unit tests live under [tests/](tests/), one `qmake` subproject per module under test, using
+Qt's `QtTest` framework. They compile the real sources from `src/` directly (not a copy), so
+they always test the same code the app ships.
+
+```sh
+qmake6 tests/tests.pro -o build-tests/Makefile
+make -C build-tests
+make -C build-tests check
+```
+
+`CONFIG += testcase` in each test's `.pro` file is what provides the `check` target: it runs
+the compiled test binary and reports a non-zero exit code if anything fails, so `make check`
+can be wired into CI.
+
+Currently covered:
+
+- **[tests/transform/](tests/transform/)** — for every `ImageTransform` implementation
+  (simple/strip/block-strip/block), verifies each of the four output strips has the requested
+  size and reflects the correct edge of the input image.
+- **[tests/process/](tests/process/)** — `BlackBarProcess` (bar removal and the unbarred
+  passthrough case), `ScaleProcess` (all three interpolation modes, both the fixed-size and
+  percentage constructors), and `LowPassFilterProcess` (first-frame behaviour and repeated
+  calls).
+
 ## License
 
 MIT — see [LICENCE.txt](LICENCE.txt).

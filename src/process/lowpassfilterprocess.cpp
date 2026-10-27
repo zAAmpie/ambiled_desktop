@@ -52,7 +52,7 @@ QImage LowPassFilterProcess::process(QImage inputImage)
 //If newest image is different than previous ones, flush because calculations won't make sense
 void LowPassFilterProcess::flushHistoryIfIncompatible(QImage &inputImage)
 {
-    if (pPreviousImages.constFirst().size() != inputImage.size())
+    if (!pPreviousImages.isEmpty() && pPreviousImages.constFirst().size() != inputImage.size())
         pPreviousImages.clear();
 }
 

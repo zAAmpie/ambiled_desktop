@@ -134,8 +134,11 @@ QImage ScaleProcess::process(QImage inputImage)
     {
     case SampleScale:
         return inputImage.scaled(pOutputSize.width, pOutputSize.height, Qt::IgnoreAspectRatio, Qt::FastTransformation);
-    case LinearScale | CubicScale:
+    case LinearScale:
+    case CubicScale:
         return inputImage.scaled(pOutputSize.width, pOutputSize.height, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    default:
+        return inputImage;
     }
 }
 #endif
