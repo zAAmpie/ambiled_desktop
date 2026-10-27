@@ -21,6 +21,11 @@ AmbiLED::AmbiLED(QWidget *parent)
 	//Create new settings object
 	pSettings = new QSettings("AmbiLED", "AmbiLED");
 
+    //Read this ahead of readSettings() (which runs at the end of this constructor): the Wayland
+    //backend starts negotiating with the portal as soon as it's constructed below, so the
+    //restore_token needs to be ready before that, not after.
+    QString waylandRestoreToken = pSettings->value(pSettingsMap.value(WaylandRestoreTokenSetting)).toString();
+
     //Set up initial UI
     setupGUI();
 
@@ -47,9 +52,10 @@ AmbiLED::AmbiLED(QWidget *parent)
     pLeds = std::unique_ptr<LEDS>(new LEDS());
 
     //Create screen manager object
-    pScreenManager = new ScreenManager(ui.refreshRateComboBox->currentData().toInt());
+    pScreenManager = new ScreenManager(ui.refreshRateComboBox->currentData().toInt(), waylandRestoreToken);
     connect(pScreenManager, &ScreenManager::readyFrame, this, &AmbiLED::screenManagerReadyFrame);
     connect(pScreenManager, &ScreenManager::failed, this, &AmbiLED::screenManagerFailed);
+    connect(pScreenManager, &ScreenManager::waylandRestoreTokenUpdated, this, &AmbiLED::screenManagerWaylandRestoreTokenUpdated);
     uiCaptureModeChanged(ui.captureComboBox->currentIndex());
     uiFullscreenModeToggled();
 
@@ -153,6 +159,10 @@ void AmbiLED::setupGUI()
     ui.captureComboBox->addItem(tr("GDI"), ScreenCapture::GDIMode);
 #endif
 #ifdef Q_OS_UNIX
+    //Inserted before X11 so index 0 matches whichever backend ScreenManager's constructor
+    //auto-selects (see ScreenManager::isWaylandSession()) - keep this ordering in sync with that.
+    if (QGuiApplication::platformName() == QLatin1String("wayland"))
+        ui.captureComboBox->addItem(tr("Wayland (PipeWire)"), ScreenCapture::WaylandMode);
     ui.captureComboBox->addItem(tr("X11"), ScreenCapture::X11Mode);
 #endif
 #ifdef Q_OS_WIN
@@ -578,6 +588,13 @@ void AmbiLED::screenManagerFailed(QString message)
 
 	if (!pCaptureIdleMode)
         enableIdleMode();
+}
+
+//The Wayland backend's portal restore_token changed - persist it so future launches skip the share dialog
+void AmbiLED::screenManagerWaylandRestoreTokenUpdated(QString token)
+{
+    pSettings->setValue(pSettingsMap.value(WaylandRestoreTokenSetting), token);
+    pSettings->sync();
 }
 
 //===== PROCESS MANAGER SLOTS FOR SIGNALS =====

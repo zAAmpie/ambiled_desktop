@@ -1,4 +1,4 @@
-QT       += core gui serialport
+QT       += core gui serialport dbus
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -7,6 +7,8 @@ CONFIG += c++17
 win32: LIBS += -ld3d11 -ld3d9 -lgdi32 -lwindowscodecs -lole32
 
 unix: LIBS += -lX11 -lXext
+unix: CONFIG += link_pkgconfig
+unix: PKGCONFIG += libpipewire-0.3
 
 # You can make your code fail to compile if it uses deprecated APIs.
 # In order to do so, uncomment the following line.
@@ -30,6 +32,7 @@ SOURCES += \
     src/capture/gdiscreencapture.cpp \
     src/capture/screencapture.cpp \
     src/capture/screenmanager.cpp \
+    src/capture/waylandscreencapture.cpp \
     src/capture/x11screencapture.cpp \
     src/common/execthread.cpp \
     src/common/pixmaputils.cpp \
@@ -55,6 +58,7 @@ HEADERS += \
     src/capture/gdiscreencapture.h \
     src/capture/screencapture.h \
     src/capture/screenmanager.h \
+    src/capture/waylandscreencapture.h \
     src/capture/x11screencapture.h \
     src/common/execthread.h \
     src/common/pixmaputils.h \

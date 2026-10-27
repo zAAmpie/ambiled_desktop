@@ -11,7 +11,10 @@ class ScreenManager : public QObject
     /* Manages screen captures according to a specified rate and returns a specified size */
     Q_OBJECT
 public:
-    ScreenManager(int frameRate = DEFAULT_FRAMERATE, QObject *parent = nullptr);
+    //waylandRestoreToken: a previously-granted portal restore_token (see QSettings), passed in up
+    //front so it's available before the default backend is even constructed - see AmbiLED's
+    //constructor for why this can't just be set afterwards via a setter.
+    ScreenManager(int frameRate = DEFAULT_FRAMERATE, QString waylandRestoreToken = QString(), QObject *parent = nullptr);
     ~ScreenManager();
 
     //Current capture modes (thread-safe)
@@ -41,9 +44,16 @@ signals:
     //Signals failure
     void failed(QString message);
 
+    //The Wayland portal issued a new (or rotated) restore_token - persist it via QSettings
+    void waylandRestoreTokenUpdated(QString token);
+
 private:
     //Frame timer slot that is called n times per second
     void frameTimerElapsed();
+
+    //The active WaylandScreenCapture reported a new/rotated restore_token - remember it (so the
+    //next reconstruction uses it) and re-emit for AmbiLED to persist
+    void onWaylandCaptureRestoreTokenUpdated(QString token);
 
     //Start timer based on frame rate
     void startFrameTimer();
@@ -57,5 +67,6 @@ private:
     QMutex pMutex;
     int pFrameRate;
     bool pTestPatternGenerationEnabled;
+    QString pWaylandRestoreToken;
 };
 

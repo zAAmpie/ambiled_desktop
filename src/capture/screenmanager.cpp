@@ -3,15 +3,33 @@
 #include "dx9screencapture.h"
 #include "dxgiscreencapture.h"
 #include "gdiscreencapture.h"
-#ifdef Q_OS_UNIX
-#include "x11screencapture.h"
-#endif
 #include <QTimer>
 #include <QPainter>
 #include <QConicalGradient>
+#ifdef Q_OS_UNIX
+//Qt includes must come before the X11 ones below - X11/Xlib.h #defines a pile of generic names
+//(None, KeyPress, Status, Bool, ...) that collide with Qt's own enum values (e.g. QEvent::Type)
+//if any Qt header still needs fresh parsing after X11 pollutes the macro namespace.
+#include <QGuiApplication>
+#include "x11screencapture.h"
+#include "waylandscreencapture.h"
+#endif
+
+#ifdef Q_OS_UNIX
+namespace {
+//QGuiApplication::platformName() reflects which QPA plugin Qt actually loaded, which is more
+//reliable than checking the WAYLAND_DISPLAY env var - that can still be set even when the app's
+//platform plugin is forced to xcb (e.g. for XShm-dependent tools like this one's X11Mode).
+bool isWaylandSession()
+{
+    return QGuiApplication::platformName() == QLatin1String("wayland");
+}
+}
+#endif
 
 //Constructor
-ScreenManager::ScreenManager(int frameRate, QObject *parent) : QObject(parent), pFrameRate(frameRate), pTestPatternGenerationEnabled(false)
+ScreenManager::ScreenManager(int frameRate, QString waylandRestoreToken, QObject *parent)
+    : QObject(parent), pFrameRate(frameRate), pTestPatternGenerationEnabled(false), pWaylandRestoreToken(std::move(waylandRestoreToken))
 {
     Q_ASSERT(frameRate > 0);
     pFrameRate = std::clamp(frameRate, 1, 1000); //Just to be safe, clamp the frame rate
@@ -21,7 +39,16 @@ ScreenManager::ScreenManager(int frameRate, QObject *parent) : QObject(parent), 
     pScreen = std::make_unique<DXGIScreenCapture>();
 #endif
 #ifdef Q_OS_UNIX
-    pScreen = std::unique_ptr<ScreenCapture>(new X11ScreenCapture());
+    if (isWaylandSession())
+    {
+        auto *waylandCapture = new WaylandScreenCapture(pWaylandRestoreToken);
+        connect(waylandCapture, &WaylandScreenCapture::restoreTokenUpdated, this, &ScreenManager::onWaylandCaptureRestoreTokenUpdated);
+        pScreen = std::unique_ptr<ScreenCapture>(waylandCapture);
+    }
+    else
+    {
+        pScreen = std::unique_ptr<ScreenCapture>(new X11ScreenCapture());
+    }
 #endif
 
     //Start frame timer based on frame period
@@ -65,11 +92,26 @@ void ScreenManager::setCaptureMode(ScreenCapture::CaptureMode mode)
     case ScreenCapture::X11Mode:
         pScreen = std::unique_ptr<ScreenCapture>(new X11ScreenCapture());
         break;
+    case ScreenCapture::WaylandMode:
+    {
+        auto *waylandCapture = new WaylandScreenCapture(pWaylandRestoreToken);
+        connect(waylandCapture, &WaylandScreenCapture::restoreTokenUpdated, this, &ScreenManager::onWaylandCaptureRestoreTokenUpdated);
+        pScreen = std::unique_ptr<ScreenCapture>(waylandCapture);
+        break;
+    }
 #endif
     default:
         break;
     }
     pMutex.unlock();
+}
+
+//The active WaylandScreenCapture reported a new/rotated restore_token - remember it (so the next
+//reconstruction, e.g. from setCaptureMode(), uses it) and re-emit for AmbiLED to persist
+void ScreenManager::onWaylandCaptureRestoreTokenUpdated(QString token)
+{
+    pWaylandRestoreToken = token;
+    emit waylandRestoreTokenUpdated(token);
 }
 
 //Frame rate (thread-safe)

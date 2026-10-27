@@ -12,7 +12,8 @@ updated colours to the LED hardware.
 
 - Multiple screen capture backends, picked automatically for the platform:
   - Windows: DXGI (preferred), DirectX 11, DirectX 9, GDI
-  - Linux: X11 (via XShm shared-memory capture)
+  - Linux: Wayland (via the `org.freedesktop.portal.ScreenCast` portal + PipeWire, preferred
+    when running under a Wayland session) or X11 (via XShm shared-memory capture)
 - Configurable capture frame rate
 - Configurable LED strip layout (top/left/right/bottom-left/bottom-gap/bottom-right counts)
 - A pipeline of image processing steps (black-bar removal, scaling, low-pass filtering) that
@@ -43,10 +44,16 @@ The source tree mirrors this pipeline:
   is the abstract base for grabbing a raw frame of the desktop. Each backend
   ([dxgiscreencapture](src/capture/dxgiscreencapture.h), [dx11screencapture](src/capture/dx11screencapture.h),
   [dx9screencapture](src/capture/dx9screencapture.h), [gdiscreencapture](src/capture/gdiscreencapture.h),
-  [x11screencapture](src/capture/x11screencapture.h)) implements it for one platform/API.
+  [x11screencapture](src/capture/x11screencapture.h),
+  [waylandscreencapture](src/capture/waylandscreencapture.h)) implements it for one
+  platform/API. Unlike the others, `WaylandScreenCapture` is asynchronous: it negotiates a
+  screen-share session over D-Bus with `org.freedesktop.portal.ScreenCast` (persisting the
+  portal's `restore_token` via `QSettings` so the share dialog only appears once), then reads
+  frames from a PipeWire video stream running on its own thread; `capture()` just returns
+  whichever frame that stream delivered most recently rather than grabbing one synchronously.
   [screenmanager.h](src/capture/screenmanager.h)'s `ScreenManager` owns the active backend,
-  polls it on a timer at the configured frame rate, and emits `readyFrame` with the captured
-  image.
+  auto-selecting Wayland or X11 at startup based on `QGuiApplication::platformName()`, polls it
+  on a timer at the configured frame rate, and emits `readyFrame` with the captured image.
 - **[src/process/](src/process/)** — `ImageProcess` ([imageprocess.h](src/process/imageprocess.h))
   is the base class for an image-processing step
   ([blackbarprocess](src/process/blackbarprocess.h), [scaleprocess](src/process/scaleprocess.h) —
@@ -81,13 +88,18 @@ This is a Qt widgets application built with `qmake`. It targets **Qt 6** (`QtCor
 
 ### Linux
 
-Install Qt 6 base, widgets and serial port modules, plus the X11 development libraries used
-by the X11 capture backend (package names below are for Arch/CachyOS; adjust for your
-distro):
+Install Qt 6 base, widgets, serial port and D-Bus modules, the X11 development libraries used
+by the X11 capture backend, and PipeWire's development headers used by the Wayland capture
+backend (package names below are for Arch/CachyOS; adjust for your distro):
 
 ```sh
-sudo pacman -S qt6-base qt6-serialport libx11
+sudo pacman -S qt6-base qt6-serialport libx11 libpipewire
 ```
+
+The Wayland backend also needs `xdg-desktop-portal` plus a backend for your desktop
+environment (`xdg-desktop-portal-kde`, `xdg-desktop-portal-gnome`, `xdg-desktop-portal-gtk`,
+...) installed and running at runtime - these aren't a *build*-time dependency, only a
+runtime one, since the app talks to them over D-Bus.
 
 Then build:
 

@@ -44,7 +44,8 @@ public:
         LEDPositionsRightSetting,
         LEDPositionsBottomLeftSetting,
         LEDPositionsBottomGapSetting,
-        LEDPositionsBottomRightSetting
+        LEDPositionsBottomRightSetting,
+        WaylandRestoreTokenSetting
     };
     Q_ENUM(AmbiLEDSettings)
 
@@ -75,6 +76,8 @@ private:
     void screenManagerReadyFrame(QImage screenImage);
     //Screen Manager signalled failure
     void screenManagerFailed(QString message);
+    //Screen Manager's Wayland backend issued a new/rotated portal restore_token
+    void screenManagerWaylandRestoreTokenUpdated(QString token);
 
     //===== LEDS SLOTS FOR SIGNALS =====
     //No signals

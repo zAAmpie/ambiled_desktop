@@ -13,6 +13,8 @@ class X11ScreenCapture;
 //Hack to undefine some standard definitions from X11 messing with other libraries
 #undef Bool
 #undef Void
+#undef Status
+#undef None
 
 class X11ScreenCapture : public ScreenCapture
 {

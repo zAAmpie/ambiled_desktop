@@ -13,7 +13,7 @@ class ScreenCapture
 {
     /* Base class for all screen capture types */
 public:
-    enum CaptureMode {GDIMode, DirectX9Mode, DirectX11Mode, DXGIMode, X11Mode};
+    enum CaptureMode {GDIMode, DirectX9Mode, DirectX11Mode, DXGIMode, X11Mode, WaylandMode};
 
     ScreenCapture();
     virtual ~ScreenCapture();
