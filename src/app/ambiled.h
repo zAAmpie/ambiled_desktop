@@ -104,7 +104,7 @@ private:
 
     //===== UI SLOTS FOR SIGNALS =====
     //Toggle screen capture
-    void uiScreenCaptureToggled();
+    void uiScreenCaptureToggled(bool enabled);
     //Debug mode toggled
     void uiDebugModeToggled();
     //Visualise fullscreen mode toggled

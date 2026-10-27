@@ -10,6 +10,7 @@ AmbiLED::AmbiLED(QWidget *parent)
       pSerialBytesWritten(0),
       pNotificationShown(false),
       pSerialPortReady(false),
+      pCaptureEnabled(true),
       pCaptureIdleMode(false)
 {
     //Register metatypes to use in signal/slot system
@@ -176,6 +177,9 @@ void AmbiLED::setupGUI()
     connect(ui.brightnessSlider, &QSlider::valueChanged, this, &AmbiLED::uiBrightnessChanged);
     connect(ui.brightnessSlider, &QSlider::valueChanged, this, [=]() {ui.brightnessValueLabel->setText(tr("%1%").arg(ui.brightnessSlider->value())); });
     ui.brightnessValueLabel->setText(tr("%1%").arg(ui.brightnessSlider->value()));
+
+    //Set up capture connection
+    connect(ui.captureCheckBox, &QCheckBox::toggled, this, &AmbiLED::uiScreenCaptureToggled);
 
     //Set up debug connection
     connect(ui.debugCheckBox, &QCheckBox::toggled, this, &AmbiLED::uiDebugModeToggled);
@@ -405,12 +409,17 @@ void AmbiLED::serialManagerFailed(QString message)
 //Clicked on system tray
 //void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
 
-//Toggle screen capture
-void AmbiLED::uiScreenCaptureToggled()
+//Toggle screen capture (fired by either the tray action or the main window checkbox)
+void AmbiLED::uiScreenCaptureToggled(bool enabled)
 {
-    pCaptureEnabled = !pCaptureEnabled;
+    pCaptureEnabled = enabled;
     pScreenManager->setEnabled(pCaptureEnabled);
+
+    //Keep the tray action and the main window checkbox in sync with each other
+    QSignalBlocker suspendActionBlocker(pSuspendAction);
     pSuspendAction->setChecked(pCaptureEnabled);
+    QSignalBlocker captureCheckBoxBlocker(ui.captureCheckBox);
+    ui.captureCheckBox->setChecked(pCaptureEnabled);
 }
 
 //Toggle debug mode
@@ -792,7 +801,7 @@ void AmbiLED::createActions()
     pSuspendAction = new QAction(tr("Capture &Screen"), this);
     pSuspendAction->setCheckable(true);
     pSuspendAction->setChecked(true);
-    connect(pSuspendAction, &QAction::triggered, this, &AmbiLED::uiScreenCaptureToggled);
+    connect(pSuspendAction, &QAction::toggled, this, &AmbiLED::uiScreenCaptureToggled);
 }
 
 void AmbiLED::createTrayIcon()
