@@ -19,6 +19,9 @@
 Q_DECLARE_METATYPE(LEDPositions)
 Q_DECLARE_METATYPE(ImageStrips)
 
+class QListWidgetItem;
+class QComboBox;
+
 class AmbiLED : public QMainWindow
 {
 	Q_OBJECT
@@ -125,8 +128,15 @@ private:
     void uiColourTempComboChanged(int index);
     //Averaging method preset has been changed
     void uiAverageMethodComboChanged(int index);
-    //Selection was changed in the processing list
-    void uiProcessListSelectionChanged();
+    //A process's checkbox was toggled in the processing list (enable/disable)
+    void uiProcessListItemChanged(QListWidgetItem *item);
+    //The current item in the processing list changed (switch which config page is shown)
+    void uiProcessListCurrentItemChanged(QListWidgetItem *current);
+    //Any config widget on the currently shown process config page changed value
+    void uiProcessConfigValueChanged();
+    //Scale's interpolation mode combo changed - not a process parameter, but a choice of
+    //which ProcessType is the active one (see createProcessConfigPage)
+    void uiScaleModeChanged(int index);
     //Clicked on system tray
     void uiTrayClicked(QSystemTrayIcon::ActivationReason reason);
     //Quit was selected from the tray menu
@@ -157,6 +167,22 @@ private:
     void createPixmaps();
     void createSettingsMap();
     void setupGUI();
+
+    //===== GENERIC PROCESS CONFIGURATION UI =====
+    //Builds the processing list rows and their config pages; needs pProcessManager to already
+    //exist, so it's called from the constructor rather than from setupGUI()
+    void setupProcessingList();
+    //Builds a config page (one spin box per IntValue ParameterSpec) for the given process type,
+    //adds it to ui.processingConfigStack, and records it for later lookup
+    QWidget *createProcessConfigPage(ImageProcess::ProcessType type);
+    //Fills in the given process type's config page widgets from ProcessManager's current values
+    void populateProcessConfigPage(ImageProcess::ProcessType type);
+    QMap<ImageProcess::ProcessType, QWidget *> pProcessConfigPages;
+    //Scale's extra interpolation-mode combo (see uiScaleModeChanged)
+    QComboBox *pScaleModeComboBox;
+    //Which of SampleScale/LinearScale/CubicScale the single "Scale" list row currently represents.
+    //UI-local bookkeeping only - ProcessManager has no concept of "the active scale type".
+    ImageProcess::ProcessType pActiveScaleType;
 
     //Pointers to bigger objects
     SerialManager *pSerialManager;

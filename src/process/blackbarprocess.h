@@ -19,6 +19,12 @@ public:
 
     //Process the image and remove black bars
     QImage process(QImage inputImage) override;
+
+    //Generic configuration contract (see ImageProcess) - "scanThresholdPercentage" (0-100,
+    //integer) and "blackValueThreshold" (0-255, integer)
+    static QList<ImageProcess::ParameterSpec> parameterSpecs();
+    QVariantMap parameters() const override;
+    void setParameters(const QVariantMap &parameters) override;
 private:
     //Test to see if line is black (within a theshold)
     int getFirstNonBlackLine(const QImage image); //TODO: See if we can speed this up

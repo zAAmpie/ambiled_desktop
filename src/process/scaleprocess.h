@@ -19,6 +19,13 @@ public:
 
     //Scales image using the selected scaler type
     QImage process(QImage inputImage) override;
+
+    //Generic configuration contract (see ImageProcess) - "scalePercentage" (10-90, integer).
+    //Interpolation mode is not a parameter here - it's a choice between which ProcessType
+    //is enabled (SampleScale/LinearScale/CubicScale), handled by ProcessManager/the UI.
+    static QList<ImageProcess::ParameterSpec> parameterSpecs();
+    QVariantMap parameters() const override;
+    void setParameters(const QVariantMap &parameters) override;
 private:
     ProcessType pType;
     ImageSize pOutputSize;

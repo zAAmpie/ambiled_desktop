@@ -5,6 +5,8 @@
 //Constructor
 AmbiLED::AmbiLED(QWidget *parent)
     : QMainWindow(parent),     //Set up local variables
+      pScaleModeComboBox(nullptr),
+      pActiveScaleType(ImageProcess::LinearScale),
       pReadCounter(0),
       pFrameCounter(0),
       pSerialBytesWritten(0),
@@ -71,8 +73,11 @@ AmbiLED::AmbiLED(QWidget *parent)
     connect(pProcessManager, &ProcessManager::failed, this, &AmbiLED::processManagerFailed);
     connect(this, &AmbiLED::processManagerStartProcess, pProcessManager, &ProcessManager::startProcess);
     uiAverageMethodComboChanged(ui.averageMethodComboBox->currentIndex());
-    //TODO: Set this using proper settings
     pProcessManager->setEnabledProcess(ImageProcess::BlackBarRemoval, true); //Set black bar removal by default
+
+    //Build the processing list UI now that pProcessManager exists to query defaults from -
+    //readSettings() (end of constructor) will override enabled/parameters from saved settings
+    setupProcessingList();
 
     //Try moving process manager to another thread
     pProcessThread = new ExecThread();
@@ -228,13 +233,6 @@ void AmbiLED::setupGUI()
     ui.averageMethodComboBox->addItem(tr("Block Averaging (Great/Slowest)"), ImageTransform::BlockTransform);
     connect(ui.averageMethodComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiAverageMethodComboChanged);
 
-    //Set up processing list
-    QListWidgetItem *blackBarWidget = new QListWidgetItem(tr("Remove black bars"));
-    blackBarWidget->setData(Qt::UserRole, ImageProcess::BlackBarRemoval);
-    ui.processingList->addItem(blackBarWidget);
-    blackBarWidget->setSelected(true);
-    connect(ui.processingList, &QListWidget::itemSelectionChanged, this, &AmbiLED::uiProcessListSelectionChanged);
-
     //Set up LED positions
     connect(ui.bottomLeftLEDCount, &QSpinBox::valueChanged, this, &AmbiLED::uiLedPositionsChanged);
     connect(ui.bottomRightLEDCount, &QSpinBox::valueChanged, this, &AmbiLED::uiLedPositionsChanged);
@@ -312,6 +310,63 @@ void AmbiLED::readSettings()
         ui.gapLEDCount->setValue(pSettings->value(pSettingsMap.value(LEDPositionsBottomGapSetting)).toInt());
     if (pSettings->contains(pSettingsMap.value(LEDPositionsBottomRightSetting)))
         ui.bottomRightLEDCount->setValue(pSettings->value(pSettingsMap.value(LEDPositionsBottomRightSetting)).toInt());
+
+    //Processing: restore each configurable type's parameters generically (no per-field setting
+    //keys needed - see ProcessManager::processParameters/setProcessParameters), then restore
+    //which rows were enabled (reusing the existing ProcessingSetting)
+    const QMetaEnum processTypeEnum = QMetaEnum::fromType<ImageProcess::ProcessType>();
+    pSettings->beginGroup(QStringLiteral("ProcessParameters"));
+    for (int i = 0; i < processTypeEnum.keyCount(); ++i)
+    {
+        ImageProcess::ProcessType type = static_cast<ImageProcess::ProcessType>(processTypeEnum.value(i));
+        pSettings->beginGroup(QString::fromLatin1(processTypeEnum.key(i)));
+        if (!pSettings->allKeys().isEmpty())
+        {
+            QVariantMap parameters;
+            for (const QString &key : pSettings->allKeys())
+                parameters.insert(key, pSettings->value(key));
+            pProcessManager->setProcessParameters(type, parameters);
+        }
+        pSettings->endGroup();
+    }
+    pSettings->endGroup();
+
+    if (pSettings->contains(pSettingsMap.value(ProcessingSetting)))
+    {
+        QStringList enabledProcessNames = pSettings->value(pSettingsMap.value(ProcessingSetting)).toStringList();
+
+        for (int i = 0; i < ui.processingList->count(); ++i)
+        {
+            QListWidgetItem *item = ui.processingList->item(i);
+            ImageProcess::ProcessType type = static_cast<ImageProcess::ProcessType>(item->data(Qt::UserRole).toInt());
+
+            if (type == ImageProcess::LinearScale)
+            {
+                //The "Scale" row's checkbox is keyed by LinearScale, but the saved enabled set
+                //names whichever of the 3 interpolation modes was actually active
+                bool scaleFound = false;
+                for (ImageProcess::ProcessType scaleType : {ImageProcess::SampleScale, ImageProcess::LinearScale, ImageProcess::CubicScale})
+                {
+                    if (enabledProcessNames.contains(QString::fromLatin1(processTypeEnum.valueToKey(scaleType))))
+                    {
+                        pActiveScaleType = scaleType;
+                        scaleFound = true;
+                        break;
+                    }
+                }
+                item->setCheckState(scaleFound ? Qt::Checked : Qt::Unchecked);
+            }
+            else
+            {
+                bool enabled = enabledProcessNames.contains(QString::fromLatin1(processTypeEnum.valueToKey(type)));
+                item->setCheckState(enabled ? Qt::Checked : Qt::Unchecked);
+            }
+        }
+
+        //Re-populate the currently shown config page now that parameters/mode may have changed
+        if (ui.processingList->currentItem())
+            populateProcessConfigPage(static_cast<ImageProcess::ProcessType>(ui.processingList->currentItem()->data(Qt::UserRole).toInt()));
+    }
 }
 
 //Write the current settings to platform specific place
@@ -334,6 +389,36 @@ void AmbiLED::writeSettings()
     pSettings->setValue(pSettingsMap.value(LEDPositionsBottomLeftSetting), ui.bottomLeftLEDCount->value());
     pSettings->setValue(pSettingsMap.value(LEDPositionsBottomGapSetting), ui.gapLEDCount->value());
     pSettings->setValue(pSettingsMap.value(LEDPositionsBottomRightSetting), ui.bottomRightLEDCount->value());
+
+    //Processing: persist which rows are enabled (reusing the existing ProcessingSetting), and
+    //every configurable type's current parameters generically - see readSettings()
+    const QMetaEnum processTypeEnum = QMetaEnum::fromType<ImageProcess::ProcessType>();
+
+    QStringList enabledProcessNames;
+    for (int i = 0; i < ui.processingList->count(); ++i)
+    {
+        QListWidgetItem *item = ui.processingList->item(i);
+        if (item->checkState() != Qt::Checked)
+            continue;
+
+        ImageProcess::ProcessType type = static_cast<ImageProcess::ProcessType>(item->data(Qt::UserRole).toInt());
+        if (type == ImageProcess::LinearScale)
+            type = pActiveScaleType;
+        enabledProcessNames.append(QString::fromLatin1(processTypeEnum.valueToKey(type)));
+    }
+    pSettings->setValue(pSettingsMap.value(ProcessingSetting), enabledProcessNames);
+
+    pSettings->beginGroup(QStringLiteral("ProcessParameters"));
+    for (int i = 0; i < processTypeEnum.keyCount(); ++i)
+    {
+        ImageProcess::ProcessType type = static_cast<ImageProcess::ProcessType>(processTypeEnum.value(i));
+        pSettings->beginGroup(QString::fromLatin1(processTypeEnum.key(i)));
+        const QVariantMap parameters = pProcessManager->processParameters(type);
+        for (auto it = parameters.constBegin(); it != parameters.constEnd(); ++it)
+            pSettings->setValue(it.key(), it.value());
+        pSettings->endGroup();
+    }
+    pSettings->endGroup();
 }
 
 //===== SERIAL MANAGER SLOTS FOR SIGNALS =====
@@ -540,18 +625,178 @@ void AmbiLED::uiAverageMethodComboChanged(int index)
     pProcessManager->setTransform(transformType);
 }
 
-//Selection was changed in the processing list
-void AmbiLED::uiProcessListSelectionChanged()
+//A process's checkbox was toggled in the processing list (enable/disable)
+void AmbiLED::uiProcessListItemChanged(QListWidgetItem *item)
 {
-    for (int i = 0; i < ui.processingList->count(); ++i)
+    ImageProcess::ProcessType type = static_cast<ImageProcess::ProcessType>(item->data(Qt::UserRole).toInt());
+    bool enabled = item->checkState() == Qt::Checked;
+
+    //The "Scale" row is keyed by LinearScale but always acts on whichever interpolation mode
+    //is currently selected (see pActiveScaleType)
+    if (type == ImageProcess::LinearScale)
+        type = pActiveScaleType;
+
+    if (enabled)
+        pProcessManager->enableProcess(type);
+    else
+        pProcessManager->disableProcess(type);
+}
+
+//The current item in the processing list changed - switch which config page is shown
+void AmbiLED::uiProcessListCurrentItemChanged(QListWidgetItem *current)
+{
+    if (!current)
+        return;
+
+    ImageProcess::ProcessType type = static_cast<ImageProcess::ProcessType>(current->data(Qt::UserRole).toInt());
+    QWidget *page = pProcessConfigPages.value(type);
+    if (!page)
+        return;
+
+    populateProcessConfigPage(type);
+    ui.processingConfigStack->setCurrentWidget(page);
+}
+
+//Any config widget on the currently shown process config page changed value
+void AmbiLED::uiProcessConfigValueChanged()
+{
+    QWidget *page = ui.processingConfigStack->currentWidget();
+    ImageProcess::ProcessType type = static_cast<ImageProcess::ProcessType>(page->property("processType").toInt());
+
+    if (type == ImageProcess::LinearScale)
+        type = pActiveScaleType;
+
+    QVariantMap parameters;
+    const QList<QSpinBox *> spinBoxes = page->findChildren<QSpinBox *>();
+    for (QSpinBox *spinBox : spinBoxes)
     {
-        QListWidgetItem *currentItem = ui.processingList->item(i);
-        if (currentItem->isSelected())
-            pProcessManager->enableProcess(currentItem->data(Qt::UserRole).value<ImageProcess::ProcessType>());
-        else
-            pProcessManager->disableProcess(currentItem->data(Qt::UserRole).value<ImageProcess::ProcessType>());
+        const QString key = spinBox->property("parameterKey").toString();
+        if (!key.isEmpty())
+            parameters.insert(key, spinBox->value());
     }
 
+    pProcessManager->setProcessParameters(type, parameters);
+}
+
+//Scale's interpolation mode combo changed - not a process parameter, but a choice of which
+//ProcessType is the active one. Carries the current percentage over to the newly chosen type,
+//and swaps which one is actually enabled if Scale is currently on.
+void AmbiLED::uiScaleModeChanged(int index)
+{
+    ImageProcess::ProcessType newType = static_cast<ImageProcess::ProcessType>(pScaleModeComboBox->itemData(index).toInt());
+    if (newType == pActiveScaleType)
+        return;
+
+    pProcessManager->setProcessParameters(newType, pProcessManager->processParameters(pActiveScaleType));
+
+    if (pProcessManager->isProcessEnabled(pActiveScaleType))
+    {
+        pProcessManager->disableProcess(pActiveScaleType);
+        pProcessManager->enableProcess(newType);
+    }
+
+    pActiveScaleType = newType;
+}
+
+//Builds the processing list rows and their generic config pages, then shows the first one.
+//Called from the constructor (not setupGUI()) since it needs pProcessManager to already exist.
+void AmbiLED::setupProcessingList()
+{
+    pActiveScaleType = ImageProcess::LinearScale;
+    if (pProcessManager->isProcessEnabled(ImageProcess::SampleScale))
+        pActiveScaleType = ImageProcess::SampleScale;
+    else if (pProcessManager->isProcessEnabled(ImageProcess::CubicScale))
+        pActiveScaleType = ImageProcess::CubicScale;
+
+    auto addRow = [this](const QString &text, ImageProcess::ProcessType type, bool checked)
+    {
+        QListWidgetItem *item = new QListWidgetItem(text);
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+        item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+        item->setData(Qt::UserRole, type);
+        ui.processingList->addItem(item);
+
+        QWidget *page = createProcessConfigPage(type);
+        pProcessConfigPages.insert(type, page);
+        ui.processingConfigStack->addWidget(page);
+    };
+
+    addRow(tr("Remove black bars"), ImageProcess::BlackBarRemoval, pProcessManager->isProcessEnabled(ImageProcess::BlackBarRemoval));
+    addRow(tr("Reduce flicker (low-pass filter)"), ImageProcess::LowPassFilter, pProcessManager->isProcessEnabled(ImageProcess::LowPassFilter));
+    addRow(tr("Scale down (reduce resolution)"), ImageProcess::LinearScale, pProcessManager->isProcessEnabled(pActiveScaleType));
+
+    connect(ui.processingList, &QListWidget::itemChanged, this, &AmbiLED::uiProcessListItemChanged);
+    connect(ui.processingList, &QListWidget::currentItemChanged, this, &AmbiLED::uiProcessListCurrentItemChanged);
+
+    ui.processingList->setCurrentRow(0);
+}
+
+//Builds a config page (one spin box per IntValue ParameterSpec) for the given process type
+QWidget *AmbiLED::createProcessConfigPage(ImageProcess::ProcessType type)
+{
+    QWidget *page = new QWidget();
+    page->setProperty("processType", static_cast<int>(type));
+    QFormLayout *layout = new QFormLayout(page);
+
+    //Scale also needs to choose which interpolation algorithm is active - not a process
+    //parameter, but a choice between three ProcessTypes (see uiScaleModeChanged)
+    if (type == ImageProcess::LinearScale)
+    {
+        pScaleModeComboBox = new QComboBox(page);
+        pScaleModeComboBox->addItem(tr("Nearest (fastest)"), ImageProcess::SampleScale);
+        pScaleModeComboBox->addItem(tr("Linear"), ImageProcess::LinearScale);
+        pScaleModeComboBox->addItem(tr("Cubic (smoothest)"), ImageProcess::CubicScale);
+        connect(pScaleModeComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::uiScaleModeChanged);
+        layout->addRow(tr("Interpolation"), pScaleModeComboBox);
+    }
+
+    const QList<ImageProcess::ParameterSpec> specs = ProcessManager::parameterSpecsForType(type);
+    for (const ImageProcess::ParameterSpec &spec : specs)
+    {
+        if (spec.kind != ImageProcess::ParameterSpec::IntValue)
+            continue;
+
+        QSpinBox *spinBox = new QSpinBox(page);
+        spinBox->setRange(spec.minimum, spec.maximum);
+        spinBox->setSingleStep(spec.step);
+        spinBox->setSuffix(spec.suffix);
+        spinBox->setProperty("parameterKey", spec.key);
+        connect(spinBox, &QSpinBox::valueChanged, this, &AmbiLED::uiProcessConfigValueChanged);
+        layout->addRow(spec.label, spinBox);
+    }
+
+    return page;
+}
+
+//Fills in the given process type's config page widgets from ProcessManager's current values
+void AmbiLED::populateProcessConfigPage(ImageProcess::ProcessType type)
+{
+    QWidget *page = pProcessConfigPages.value(type);
+    if (!page)
+        return;
+
+    ImageProcess::ProcessType parameterType = type;
+    if (type == ImageProcess::LinearScale)
+    {
+        parameterType = pActiveScaleType;
+        if (pScaleModeComboBox)
+        {
+            QSignalBlocker blocker(pScaleModeComboBox);
+            pScaleModeComboBox->setCurrentIndex(pScaleModeComboBox->findData(pActiveScaleType));
+        }
+    }
+
+    const QVariantMap parameters = pProcessManager->processParameters(parameterType);
+    const QList<QSpinBox *> spinBoxes = page->findChildren<QSpinBox *>();
+    for (QSpinBox *spinBox : spinBoxes)
+    {
+        const QString key = spinBox->property("parameterKey").toString();
+        if (parameters.contains(key))
+        {
+            QSignalBlocker blocker(spinBox);
+            spinBox->setValue(parameters.value(key).toInt());
+        }
+    }
 }
 
 //Clicked on system tray

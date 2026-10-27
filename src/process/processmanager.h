@@ -32,6 +32,19 @@ public:
     //Set priority of process. Lower values = first execution - thread-safe
     void setProcessPriority(ImageProcess::ProcessType type, int priority);
 
+    //Is a process of this type currently enabled? - thread-safe
+    bool isProcessEnabled(ImageProcess::ProcessType type) const;
+
+    //Generic per-process configuration (see ImageProcess::ParameterSpec/parameters/setParameters) -
+    //works for any process type without ProcessManager needing to know what the parameters mean.
+    //Stored values persist across enable/disable, and apply live if the process is enabled - thread-safe
+    QVariantMap processParameters(ImageProcess::ProcessType type) const;
+    void setProcessParameters(ImageProcess::ProcessType type, const QVariantMap &parameters);
+
+    //Metadata describing a process type's configurable parameters, for building generic config UI.
+    //Callable without an instance, since a disabled process type has none.
+    static QList<ImageProcess::ParameterSpec> parameterSpecsForType(ImageProcess::ProcessType type);
+
     //Only one transform can be used at a given point (1 - 1) - thread-safe
     void setTransform(ImageTransform::TransformType type);
 
@@ -53,8 +66,9 @@ private:
 
     QList<ImageProcess *> pProcessList;
     QMap<ImageProcess::ProcessType, ProcessStatus> pProcessStatus;
+    QMap<ImageProcess::ProcessType, QVariantMap> pProcessParameters;
     std::unique_ptr<ImageTransform> pTransform;
 
-    QMutex pMutex;
+    mutable QMutex pMutex;
 };
 

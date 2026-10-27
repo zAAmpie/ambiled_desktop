@@ -20,6 +20,11 @@ public:
 
     //Process the input image and return a filtered output
     QImage process(QImage inputImage) override;
+
+    //Generic configuration contract (see ImageProcess) - "filterCutoffHz" and "historyMax"
+    static QList<ImageProcess::ParameterSpec> parameterSpecs();
+    QVariantMap parameters() const override;
+    void setParameters(const QVariantMap &parameters) override;
 private:
     //If newest image is different than previous ones, flush because calculations won't make sense
     void flushHistoryIfIncompatible(QImage &inputImage);

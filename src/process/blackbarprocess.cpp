@@ -18,6 +18,42 @@ BlackBarProcess::~BlackBarProcess()
 
 }
 
+//Generic configuration contract (see ImageProcess)
+QList<ImageProcess::ParameterSpec> BlackBarProcess::parameterSpecs()
+{
+    ImageProcess::ParameterSpec scanThreshold;
+    scanThreshold.key = QStringLiteral("scanThresholdPercentage");
+    scanThreshold.label = QStringLiteral("Scan depth");
+    scanThreshold.minimum = 0;
+    scanThreshold.maximum = 50;
+    scanThreshold.step = 5;
+    scanThreshold.suffix = QStringLiteral("%");
+
+    ImageProcess::ParameterSpec noiseTolerance;
+    noiseTolerance.key = QStringLiteral("blackValueThreshold");
+    noiseTolerance.label = QStringLiteral("Noise tolerance");
+    noiseTolerance.minimum = 0;
+    noiseTolerance.maximum = 255;
+
+    return {scanThreshold, noiseTolerance};
+}
+
+QVariantMap BlackBarProcess::parameters() const
+{
+    QVariantMap parameters;
+    parameters.insert(QStringLiteral("scanThresholdPercentage"), qRound(pScanThreshold * 100.0f));
+    parameters.insert(QStringLiteral("blackValueThreshold"), qRound(pValueThreshold));
+    return parameters;
+}
+
+void BlackBarProcess::setParameters(const QVariantMap &parameters)
+{
+    if (parameters.contains(QStringLiteral("scanThresholdPercentage")))
+        pScanThreshold = std::clamp(parameters.value(QStringLiteral("scanThresholdPercentage")).toFloat() / 100.0f, 0.0f, 1.0f);
+    if (parameters.contains(QStringLiteral("blackValueThreshold")))
+        pValueThreshold = std::clamp(parameters.value(QStringLiteral("blackValueThreshold")).toFloat(), 0.0f, 255.0f);
+}
+
 //Process the image and remove black bars
 QImage BlackBarProcess::process(QImage inputImage)
 {

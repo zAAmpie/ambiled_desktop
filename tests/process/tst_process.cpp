@@ -29,6 +29,8 @@ private slots:
     void scaleProcess_percentageScale();
     void lowPassFilterProcess_firstFrameUnchanged();
     void lowPassFilterProcess_handlesRepeatedCalls();
+    void lowPassFilterProcess_smoothsSubsequentFrames();
+    void blackBarProcess_parametersRoundTrip();
 };
 
 void TstProcess::blackBarProcess_removesBars()
@@ -126,6 +128,44 @@ void TstProcess::lowPassFilterProcess_handlesRepeatedCalls()
         QImage result = process.process(image);
         QCOMPARE(result.size(), image.size());
     }
+}
+
+void TstProcess::lowPassFilterProcess_smoothsSubsequentFrames()
+{
+    //Regression test for two bugs that together made the filter a complete no-op:
+    //1) the history queue used to enqueue the current frame then immediately dequeue that
+    //   same frame back out as "previous", so it always diffed a frame against itself
+    //2) the decay exponent used the elapsed time in milliseconds where the formula expects
+    //   seconds, making the blend factor ~1000x too extreme at realistic cutoffs
+    //With both fixed, a very different second frame fed in right after the first (negligible
+    //elapsed time, so the filter should barely move towards it) must NOT come out identical
+    //to the raw second input - today it would, since the filter has no effect at all.
+    LowPassFilterProcess process;
+
+    QImage first = makeSolidImage(8, 8, qRgb(0, 0, 0));
+    process.process(first);
+
+    QImage second = makeSolidImage(8, 8, qRgb(255, 255, 255));
+    QImage result = process.process(second);
+
+    QVERIFY(result.pixel(0, 0) != second.pixel(0, 0));
+}
+
+void TstProcess::blackBarProcess_parametersRoundTrip()
+{
+    BlackBarProcess process;
+    QVariantMap parameters = process.parameters();
+    QCOMPARE(parameters.value(QStringLiteral("scanThresholdPercentage")).toInt(), 25);
+    QCOMPARE(parameters.value(QStringLiteral("blackValueThreshold")).toInt(), 5);
+
+    QVariantMap updated;
+    updated.insert(QStringLiteral("scanThresholdPercentage"), 10);
+    updated.insert(QStringLiteral("blackValueThreshold"), 20);
+    process.setParameters(updated);
+
+    parameters = process.parameters();
+    QCOMPARE(parameters.value(QStringLiteral("scanThresholdPercentage")).toInt(), 10);
+    QCOMPARE(parameters.value(QStringLiteral("blackValueThreshold")).toInt(), 20);
 }
 
 QTEST_GUILESS_MAIN(TstProcess)

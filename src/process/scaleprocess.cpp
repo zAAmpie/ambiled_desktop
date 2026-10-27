@@ -1,4 +1,5 @@
 #include "scaleprocess.h"
+#include <algorithm>
 
 //Constructor
 ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, ImageSize outputSize) : pType(type)
@@ -46,6 +47,33 @@ ScaleProcess::ScaleProcess(ImageProcess::ProcessType type, float scalePercentage
     );
     Q_ASSERT(SUCCEEDED(hr));
 #endif
+}
+
+//Generic configuration contract (see ImageProcess)
+QList<ImageProcess::ParameterSpec> ScaleProcess::parameterSpecs()
+{
+    ImageProcess::ParameterSpec percentage;
+    percentage.key = QStringLiteral("scalePercentage");
+    percentage.label = QStringLiteral("Scale");
+    percentage.minimum = 10;
+    percentage.maximum = 90;
+    percentage.step = 5;
+    percentage.suffix = QStringLiteral("%");
+
+    return {percentage};
+}
+
+QVariantMap ScaleProcess::parameters() const
+{
+    QVariantMap parameters;
+    parameters.insert(QStringLiteral("scalePercentage"), qRound(pScalePercentage * 100.0f));
+    return parameters;
+}
+
+void ScaleProcess::setParameters(const QVariantMap &parameters)
+{
+    if (parameters.contains(QStringLiteral("scalePercentage")))
+        pScalePercentage = std::clamp(parameters.value(QStringLiteral("scalePercentage")).toFloat() / 100.0f, 0.1f, 0.9f);
 }
 
 //Destructor
