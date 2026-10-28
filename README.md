@@ -177,6 +177,10 @@ Currently covered:
   running after-transform steps on the strips).
 - **[tests/common/](tests/common/)** — `ImageUtils::downsample32` (per-channel averaging,
   no overflow at full intensity, row sampling, stride padding).
+- **[tests/capture/](tests/capture/)** (Unix only) — `X11ScreenCapture` against whatever X
+  server `$DISPLAY` points at (XWayland on a Wayland desktop; it only reads the root window):
+  produces correctly downsampled frames, fails cleanly without a display, and can be destroyed
+  before its first capture. Skips itself when no X server is available.
 
 ## Measuring performance
 
