@@ -2,8 +2,10 @@
 
 #include <QObject>
 #include <QMutex>
+#include <QElapsedTimer>
 #include "screencapture.h"
 #include "perfstats.h"
+#include "testpattern.h"
 
 #define DEFAULT_FRAMERATE 60
 
@@ -34,7 +36,9 @@ public:
     void enable() {setEnabled(true);}
     void disable() {setEnabled(false);}
 
-    //Debug mode
+    //Test pattern mode (thread-safe): while enabled, frames are rendered from the test pattern and fed
+    //straight into processing instead of being captured from the screen
+    void setTestPattern(const TestPattern &pattern);
     void setTestPatternGeneration(bool state);
     void enableTestPatternGeneration() {setTestPatternGeneration(true);}
     void disableTestPatternGeneration() {setTestPatternGeneration(false);}
@@ -59,16 +63,21 @@ private:
     //Start timer based on frame rate
     void startFrameTimer();
 
-    //Generate test pattern
-    QImage generateTestPattern();
+    //Renders the current test pattern frame - call with pMutex held
+    QImage testPatternFrame();
 
     std::unique_ptr<ScreenCapture> pScreen;
     QTimer *pFrameTimer;
 
     QMutex pMutex;
     int pFrameRate;
-    bool pTestPatternGenerationEnabled;
     QString pWaylandRestoreToken;
+
+    //Test pattern mode - guarded by pMutex
+    bool pTestPatternGenerationEnabled;
+    TestPattern pTestPattern;
+    QElapsedTimer pTestPatternClock;
+    QImage pTestPatternFrame; //Last rendered frame, re-sent as-is while the pattern is static
 
     PerfStats pCaptureStats;
 };

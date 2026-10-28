@@ -6,6 +6,7 @@
 #include <QPair>
 #include <QList>
 #include <QString>
+#include "parameterspec.h"
 
 class ImageProcess : public QObject
 {
@@ -22,23 +23,7 @@ public:
     enum Stage {BeforeTransform, AfterTransform};
 
     //Describes one user-configurable parameter of a process type, for building generic config UI
-    struct ParameterSpec
-    {
-        enum Kind {IntValue, Choice};
-
-        Kind kind = IntValue;
-        QString key;
-        QString label;
-
-        //IntValue
-        int minimum = 0;
-        int maximum = 100;
-        int step = 1;
-        QString suffix;
-
-        //Choice
-        QList<QPair<QString, int>> choices;
-    };
+    using ParameterSpec = ::ParameterSpec;
 
     ImageProcess(QObject *parent = nullptr);
     virtual ~ImageProcess();

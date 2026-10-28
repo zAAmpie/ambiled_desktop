@@ -4,8 +4,6 @@
 #include "dxgiscreencapture.h"
 #include "gdiscreencapture.h"
 #include <QTimer>
-#include <QPainter>
-#include <QConicalGradient>
 #ifdef Q_OS_UNIX
 //Qt includes must come before the X11 ones below - X11/Xlib.h #defines a pile of generic names
 //(None, KeyPress, Status, Bool, ...) that collide with Qt's own enum values (e.g. QEvent::Type)
@@ -29,7 +27,7 @@ bool isWaylandSession()
 
 //Constructor
 ScreenManager::ScreenManager(int frameRate, QString waylandRestoreToken, QObject *parent)
-    : QObject(parent), pFrameRate(frameRate), pTestPatternGenerationEnabled(false), pWaylandRestoreToken(std::move(waylandRestoreToken)),
+    : QObject(parent), pFrameRate(frameRate), pWaylandRestoreToken(std::move(waylandRestoreToken)), pTestPatternGenerationEnabled(false),
       pCaptureStats(QStringLiteral("capture"))
 {
     Q_ASSERT(frameRate > 0);
@@ -138,42 +136,50 @@ void ScreenManager::setEnabled(bool state)
         pFrameTimer->stop();
 }
 
-//Test pattern generation mode
+//Test pattern to render while test pattern mode is enabled (thread-safe)
+void ScreenManager::setTestPattern(const TestPattern &pattern)
+{
+    QMutexLocker locker(&pMutex);
+    pTestPattern = pattern;
+    pTestPatternFrame = QImage();
+}
+
+//Test pattern generation mode (thread-safe) - patterns run at the normal frame rate, so animations
+//and the low-pass filter behave as they would on captured frames
 void ScreenManager::setTestPatternGeneration(bool state)
 {
-    pTestPatternGenerationEnabled = state;
-    if (pTestPatternGenerationEnabled)
     {
-        //Test enabled
-        pFrameTimer->start(100); //Slow down timer to 10 fps
+        QMutexLocker locker(&pMutex);
+        pTestPatternGenerationEnabled = state;
+        if (state)
+        {
+            pTestPatternClock.start();
+            pTestPatternFrame = QImage();
+        }
     }
-    else
-    {
-        //Test disabled
-        startFrameTimer(); //Set timer back to normal
-    }
-
+    startFrameTimer();
 }
 
 //Frame timer slot that is called n times per second
 void ScreenManager::frameTimerElapsed()
 {
+    pMutex.lock(); //Lock here just in case we're trying to destroy the pScreen object while capturing
     if (pTestPatternGenerationEnabled)
     {
         //Update screen with test pattern
-        emit readyFrame(generateTestPattern());
-    }
-    else
-    {
-        //Update screen as normal
-        pMutex.lock(); //Lock here just in case we're trying to destroy the pScreen object while capturing
-        CaptureValue captureValue = [this] {PerfTimer timer(pCaptureStats); return pScreen->capture();}();
+        QImage frame = testPatternFrame();
         pMutex.unlock();
-        if (captureValue.success() && !captureValue.value.isNull())
-            emit readyFrame(captureValue.value);
-        else
-            emit failed(captureValue.error);
+        emit readyFrame(frame);
+        return;
     }
+
+    //Update screen as normal
+    CaptureValue captureValue = [this] {PerfTimer timer(pCaptureStats); return pScreen->capture();}();
+    pMutex.unlock();
+    if (captureValue.success() && !captureValue.value.isNull())
+        emit readyFrame(captureValue.value);
+    else
+        emit failed(captureValue.error);
 }
 
 //Start timer based on frame rate
@@ -184,26 +190,14 @@ void ScreenManager::startFrameTimer()
     pFrameTimer->start(frameTime);
 }
 
-//Generate test pattern
-QImage ScreenManager::generateTestPattern()
+//Renders the current test pattern frame - call with pMutex held. Sized like a captured 4K frame after
+//the capture backends' downsampling. A static pattern is rendered once and then re-sent as the very
+//same image, so processing can reuse its output instead of recomputing it every frame.
+QImage ScreenManager::testPatternFrame()
 {
-    QImage testImage = QImage(320,180, QImage::Format_RGB32);
-    QPainter painter(&testImage);
-
-    //Generate gradient
-    QConicalGradient gradient(QPointF(160,90), 0);
-    //Red - Yellow - Green - Cyan - Blue - Magenta - Red
-    gradient.setColorAt(0.0f / 360.0f, Qt::red);
-    gradient.setColorAt(60.0f / 360.0f, Qt::yellow);
-    gradient.setColorAt(120.0f / 360.0f, Qt::green);
-    gradient.setColorAt(180.0f / 360.0f, Qt::cyan);
-    gradient.setColorAt(240.0f / 360.0f, Qt::blue);
-    gradient.setColorAt(300.0f / 360.0f, Qt::magenta);
-    gradient.setColorAt(360.0f / 360.0f, Qt::red);
-
-    //Fill with gradient
-    painter.fillRect(testImage.rect(), gradient);
-
-    return testImage;
+    static const QSize FrameSize(3840 / ScreenCapture::DownsampleFactor, 2160 / ScreenCapture::DownsampleFactor);
+    if (pTestPatternFrame.isNull() || pTestPattern.isAnimated())
+        pTestPatternFrame = pTestPattern.render(FrameSize, pTestPatternClock.elapsed());
+    return pTestPatternFrame;
 }
 

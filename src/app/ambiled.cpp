@@ -1,5 +1,6 @@
 #include <QtWidgets>
 #include "ambiled.h"
+#include "parameterform.h"
 #include "pixmaputils.h"
 
 //Constructor
@@ -189,8 +190,8 @@ void AmbiLED::setupGUI()
     //Set up capture connection
     connect(ui.captureCheckBox, &QCheckBox::toggled, this, &AmbiLED::uiScreenCaptureToggled);
 
-    //Set up debug connection
-    connect(ui.debugCheckBox, &QCheckBox::toggled, this, &AmbiLED::uiDebugModeToggled);
+    //Set up the Test tab, after Display and Advanced
+    ui.tabWidget->addTab(createTestTab(), tr("Test"));
 
     //Set up visualise connection
     connect(ui.visualiseCheckBox, &QCheckBox::toggled, this, &AmbiLED::uiFullscreenModeToggled);
@@ -434,7 +435,7 @@ void AmbiLED::serialManagerSerialDataRead(QByteArray data)
 	quint32 readBytes;
 	stream >> readBytes;
 
-    if (pDebugMode)
+    if (pVerboseSerialCheckBox->isChecked())
     {
         QString str = QString(data.toHex(':'));
         ui.debugLabel->setText(tr("#%1 returned (R:%2 W:%3) - Raw (%4)").arg(++pReadCounter).arg(readBytes).arg(pSerialBytesWritten).arg(str));
@@ -510,11 +511,18 @@ void AmbiLED::uiScreenCaptureToggled(bool enabled)
     ui.captureCheckBox->setChecked(pCaptureEnabled);
 }
 
-//Toggle debug mode
-void AmbiLED::uiDebugModeToggled()
+//Test tab: where the test pattern goes changed
+void AmbiLED::uiTestOutputChanged()
 {
-    pDebugMode = ui.debugCheckBox->isChecked();
-    pScreenManager->setTestPatternGeneration(pDebugMode);
+    pScreenManager->setTestPattern(currentTestPattern());
+    pScreenManager->setTestPatternGeneration(pTestOutputGroup->checkedId() == TestOutputDirect);
+}
+
+//Test tab: the chosen pattern or any of its parameters changed - applied live (the pattern's
+//clock keeps running, so tweaking e.g. the wheel's speed doesn't restart it)
+void AmbiLED::uiTestPatternChanged()
+{
+    pScreenManager->setTestPattern(currentTestPattern());
 }
 
 //Visualise fullscreen mode toggled
@@ -669,16 +677,7 @@ void AmbiLED::uiProcessConfigValueChanged()
     if (type == ImageProcess::LinearScale)
         type = pActiveScaleType;
 
-    QVariantMap parameters;
-    const QList<QSpinBox *> spinBoxes = page->findChildren<QSpinBox *>();
-    for (QSpinBox *spinBox : spinBoxes)
-    {
-        const QString key = spinBox->property("parameterKey").toString();
-        if (!key.isEmpty())
-            parameters.insert(key, spinBox->value());
-    }
-
-    pProcessManager->setProcessParameters(type, parameters);
+    pProcessManager->setProcessParameters(type, page->findChild<ParameterForm *>()->values());
 }
 
 //Scale's interpolation mode combo changed - not a process parameter, but a choice of which
@@ -753,22 +752,73 @@ QWidget *AmbiLED::createProcessConfigPage(ImageProcess::ProcessType type)
         layout->addRow(tr("Interpolation"), pScaleModeComboBox);
     }
 
-    const QList<ImageProcess::ParameterSpec> specs = ProcessManager::parameterSpecsForType(type);
-    for (const ImageProcess::ParameterSpec &spec : specs)
-    {
-        if (spec.kind != ImageProcess::ParameterSpec::IntValue)
-            continue;
-
-        QSpinBox *spinBox = new QSpinBox(page);
-        spinBox->setRange(spec.minimum, spec.maximum);
-        spinBox->setSingleStep(spec.step);
-        spinBox->setSuffix(spec.suffix);
-        spinBox->setProperty("parameterKey", spec.key);
-        connect(spinBox, &QSpinBox::valueChanged, this, &AmbiLED::uiProcessConfigValueChanged);
-        layout->addRow(spec.label, spinBox);
-    }
+    ParameterForm *form = new ParameterForm(ProcessManager::parameterSpecsForType(type), layout, page);
+    connect(form, &ParameterForm::valuesChanged, this, &AmbiLED::uiProcessConfigValueChanged);
 
     return page;
+}
+
+//Builds the Test tab: where test patterns go, which pattern (each with its own generic ParameterForm
+//page), and the verbose serial log switch
+QWidget *AmbiLED::createTestTab()
+{
+    QWidget *tab = new QWidget();
+    QFormLayout *layout = new QFormLayout(tab);
+
+    //Output
+    QWidget *outputWidget = new QWidget(tab);
+    QVBoxLayout *outputLayout = new QVBoxLayout(outputWidget);
+    outputLayout->setContentsMargins(0, 0, 0, 0);
+    pTestOutputGroup = new QButtonGroup(tab);
+    auto addOutput = [&](const QString &text, TestOutput output)
+    {
+        QRadioButton *button = new QRadioButton(text, outputWidget);
+        pTestOutputGroup->addButton(button, output);
+        outputLayout->addWidget(button);
+    };
+    addOutput(tr("Off (normal screen capture)"), TestOutputOff);
+    addOutput(tr("Direct (fed straight into processing, skipping screen capture)"), TestOutputDirect);
+    pTestOutputGroup->button(TestOutputOff)->setChecked(true);
+    connect(pTestOutputGroup, &QButtonGroup::idToggled, this, [this](int, bool checked) {if (checked) uiTestOutputChanged();});
+    layout->addRow(tr("Test pattern"), outputWidget);
+
+    //Pattern, with a parameter page per pattern type
+    pTestPatternComboBox = new QComboBox(tab);
+    pTestPatternPages = new QStackedWidget(tab);
+    for (TestPattern::Type type : TestPattern::Types)
+    {
+        pTestPatternComboBox->addItem(TestPattern::name(type), type);
+
+        QWidget *page = new QWidget(pTestPatternPages);
+        QFormLayout *pageLayout = new QFormLayout(page);
+        pageLayout->setContentsMargins(0, 0, 0, 0);
+        ParameterForm *form = new ParameterForm(TestPattern::parameterSpecs(type), pageLayout, page);
+        connect(form, &ParameterForm::valuesChanged, this, &AmbiLED::uiTestPatternChanged);
+        pTestPatternForms.append(form);
+        pTestPatternPages->addWidget(page);
+    }
+    connect(pTestPatternComboBox, &QComboBox::currentIndexChanged, this, [this](int index)
+    {
+        pTestPatternPages->setCurrentIndex(index);
+        uiTestPatternChanged();
+    });
+    layout->addRow(tr("Pattern"), pTestPatternComboBox);
+    layout->addRow(pTestPatternPages);
+
+    //Serial debugging
+    pVerboseSerialCheckBox = new QCheckBox(tr("Show raw serial replies in the status line"), tab);
+    layout->addRow(tr("Serial"), pVerboseSerialCheckBox);
+
+    return tab;
+}
+
+//The pattern currently configured in the Test tab
+TestPattern AmbiLED::currentTestPattern() const
+{
+    int index = pTestPatternComboBox->currentIndex();
+    TestPattern pattern(static_cast<TestPattern::Type>(pTestPatternComboBox->itemData(index).toInt()));
+    pattern.setParameters(pTestPatternForms.at(index)->values());
+    return pattern;
 }
 
 //Fills in the given process type's config page widgets from ProcessManager's current values
@@ -789,17 +839,7 @@ void AmbiLED::populateProcessConfigPage(ImageProcess::ProcessType type)
         }
     }
 
-    const QVariantMap parameters = pProcessManager->processParameters(parameterType);
-    const QList<QSpinBox *> spinBoxes = page->findChildren<QSpinBox *>();
-    for (QSpinBox *spinBox : spinBoxes)
-    {
-        const QString key = spinBox->property("parameterKey").toString();
-        if (parameters.contains(key))
-        {
-            QSignalBlocker blocker(spinBox);
-            spinBox->setValue(parameters.value(key).toInt());
-        }
-    }
+    page->findChild<ParameterForm *>()->setValues(pProcessManager->processParameters(parameterType));
 }
 
 //Clicked on system tray

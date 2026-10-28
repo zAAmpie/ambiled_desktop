@@ -21,11 +21,13 @@ INCLUDEPATH += \
     src/transform \
     src/leds \
     src/serial \
-    src/common
+    src/common \
+    src/testpattern
 
 SOURCES += \
     src/app/ambiled.cpp \
     src/app/main.cpp \
+    src/app/parameterform.cpp \
     src/capture/dx11screencapture.cpp \
     src/capture/dx9screencapture.cpp \
     src/capture/dxgiscreencapture.cpp \
@@ -46,6 +48,7 @@ SOURCES += \
     src/process/processmanager.cpp \
     src/process/scaleprocess.cpp \
     src/serial/serialmanager.cpp \
+    src/testpattern/testpattern.cpp \
     src/transform/blockstriptransform.cpp \
     src/transform/blocktransform.cpp \
     src/transform/imagetransform.cpp \
@@ -54,6 +57,7 @@ SOURCES += \
 
 HEADERS += \
     src/app/ambiled.h \
+    src/app/parameterform.h \
     src/capture/dx11screencapture.h \
     src/capture/dx9screencapture.h \
     src/capture/dxgiscreencapture.h \
@@ -64,6 +68,7 @@ HEADERS += \
     src/capture/x11screencapture.h \
     src/common/execthread.h \
     src/common/imageutils.h \
+    src/common/parameterspec.h \
     src/common/perfstats.h \
     src/common/pixmaputils.h \
     src/common/types.h \
@@ -76,6 +81,7 @@ HEADERS += \
     src/process/processmanager.h \
     src/process/scaleprocess.h \
     src/serial/serialmanager.h \
+    src/testpattern/testpattern.h \
     src/transform/blockstriptransform.h \
     src/transform/blocktransform.h \
     src/transform/imagetransform.h \

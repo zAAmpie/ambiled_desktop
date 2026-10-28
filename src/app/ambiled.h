@@ -16,12 +16,17 @@
 #include "processmanager.h"
 #include "leds.h"
 #include "perfstats.h"
+#include "testpattern.h"
 
 Q_DECLARE_METATYPE(LEDPositions)
 Q_DECLARE_METATYPE(ImageStrips)
 
 class QListWidgetItem;
 class QComboBox;
+class QCheckBox;
+class QButtonGroup;
+class QStackedWidget;
+class ParameterForm;
 
 class AmbiLED : public QMainWindow
 {
@@ -109,8 +114,10 @@ private:
     //===== UI SLOTS FOR SIGNALS =====
     //Toggle screen capture
     void uiScreenCaptureToggled(bool enabled);
-    //Debug mode toggled
-    void uiDebugModeToggled();
+    //Test tab: where the test pattern goes (off / direct into processing) changed
+    void uiTestOutputChanged();
+    //Test tab: the chosen pattern or any of its parameters changed
+    void uiTestPatternChanged();
     //Visualise fullscreen mode toggled
     void uiFullscreenModeToggled();
     //The refresh rate has been changed
@@ -177,7 +184,7 @@ private:
     //Builds the processing list rows and their config pages; needs pProcessManager to already
     //exist, so it's called from the constructor rather than from setupGUI()
     void setupProcessingList();
-    //Builds a config page (one spin box per IntValue ParameterSpec) for the given process type,
+    //Builds a config page (a ParameterForm over the type's ParameterSpecs) for the given process type,
     //adds it to ui.processingConfigStack, and records it for later lookup
     QWidget *createProcessConfigPage(ImageProcess::ProcessType type);
     //Fills in the given process type's config page widgets from ProcessManager's current values
@@ -188,6 +195,19 @@ private:
     //Which of SampleScale/LinearScale/CubicScale the single "Scale" list row currently represents.
     //UI-local bookkeeping only - ProcessManager has no concept of "the active scale type".
     ImageProcess::ProcessType pActiveScaleType;
+
+    //===== TEST TAB =====
+    //Where a test pattern goes - nothing in the Test tab is persisted, so tests never resume at startup
+    enum TestOutput {TestOutputOff, TestOutputDirect};
+    //Builds the Test tab (output choice, pattern choice + a ParameterForm per pattern, verbose serial log)
+    QWidget *createTestTab();
+    //The pattern currently configured in the Test tab
+    TestPattern currentTestPattern() const;
+    QButtonGroup *pTestOutputGroup;
+    QComboBox *pTestPatternComboBox;
+    QStackedWidget *pTestPatternPages;
+    QList<ParameterForm *> pTestPatternForms; //Indexed like pTestPatternComboBox/pTestPatternPages
+    QCheckBox *pVerboseSerialCheckBox;
 
     //Pointers to bigger objects
     SerialManager *pSerialManager;
@@ -238,6 +258,5 @@ private:
     bool pSerialPortReady;
     bool pCaptureEnabled;
     bool pFullscreenMode;
-    bool pDebugMode;
     bool pCaptureIdleMode;
 };
