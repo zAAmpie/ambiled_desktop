@@ -24,6 +24,10 @@ public:
 
     //Main function to start capturing the screen
     virtual CaptureValue capture() = 0;
+
+    //Backends that downsample while copying out of the system's frame buffer (Wayland, X11) make
+    //frames this many times smaller in each dimension (power of two) - see ImageUtils::downsample32
+    static constexpr int DownsampleFactor = 4;
 protected:
 #ifdef Q_OS_WIN
     //Calculate window size

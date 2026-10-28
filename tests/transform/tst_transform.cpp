@@ -70,6 +70,7 @@ private slots:
     void stripTransform();
     void blockStripTransform();
     void blockTransform();
+    void outermostRowAndColumnAreSampled();
 };
 
 void TstTransform::verifyEdges(ImageTransform &transform)
@@ -133,6 +134,22 @@ void TstTransform::blockTransform()
     BlockTransform transform;
     QCOMPARE(transform.type(), ImageTransform::BlockTransform);
     verifyEdges(transform);
+}
+
+void TstTransform::outermostRowAndColumnAreSampled()
+{
+    //Regression test: the bottom and right strips used to be taken one pixel in from the edge,
+    //skipping the last row/column. SimpleTransform samples exactly the outermost 1px, so a band
+    //that's only 1px wide must still come through.
+    const QRgb edgeColour = qRgb(255, 0, 0);
+    const QRgb restColour = qRgb(0, 0, 255);
+    SimpleTransform transform;
+
+    ImageStrips bottom = transform.transform(makeRowBandImage(1, false, edgeColour, restColour), TestSizes);
+    QVERIFY2(isUniform(bottom.bottomLine, edgeColour), "bottom strip should be the last row");
+
+    ImageStrips right = transform.transform(makeColumnBandImage(1, false, edgeColour, restColour), TestSizes);
+    QVERIFY2(isUniform(right.rightLine, edgeColour), "right strip should be the last column");
 }
 
 QTEST_GUILESS_MAIN(TstTransform)

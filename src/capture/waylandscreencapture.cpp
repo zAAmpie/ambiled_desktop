@@ -198,8 +198,36 @@ void WaylandScreenCapture::setLastError(const QString &error)
     pLastError = error;
 }
 
-//Kick off the CreateSession -> SelectSources -> Start -> OpenPipeWireRemote sequence
+//Kick off negotiation: check the portal can share monitors at all, then createSession()
 void WaylandScreenCapture::startNegotiation()
+{
+    //A portal backend that can't screen-cast (e.g. KWin's screencast protocol unavailable to it)
+    //still exposes the ScreenCast interface, but rejects CreateSession with an opaque "response 2".
+    //Its AvailableSourceTypes property says so up front, so check that first for a useful error.
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.portal.Desktop"), QStringLiteral("/org/freedesktop/portal/desktop"),
+        QStringLiteral("org.freedesktop.DBus.Properties"), QStringLiteral("Get"));
+    message << QStringLiteral("org.freedesktop.portal.ScreenCast") << QStringLiteral("AvailableSourceTypes");
+
+    auto *watcher = new QDBusPendingCallWatcher(QDBusConnection::sessionBus().asyncCall(message), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *callWatcher)
+    {
+        QDBusPendingReply<QDBusVariant> reply = *callWatcher;
+        callWatcher->deleteLater();
+
+        //Bit 1 = MONITOR. If the property can't be read at all, carry on and let CreateSession report the problem.
+        if (!reply.isError() && !(reply.value().variant().toUInt() & 1))
+        {
+            fail(QStringLiteral("WaylandScreenCapture: The desktop portal can't share screens (no monitor source available) - "
+                                "check that screen recording works in your desktop, e.g. in Spectacle"));
+            return;
+        }
+        createSession();
+    });
+}
+
+//The CreateSession -> SelectSources -> Start -> OpenPipeWireRemote sequence
+void WaylandScreenCapture::createSession()
 {
     QString handleToken = subscribeToRequest(SLOT(onCreateSessionResponse(uint,QVariantMap)));
     QString sessionHandleToken = QStringLiteral("ambiled_session_%1").arg(QUuid::createUuid().toString(QUuid::Id128));

@@ -25,13 +25,14 @@ public:
     //Get methods
     CaptureMode type() const override {return ScreenCapture::X11Mode;}
 
-    //Main function to start capturing the screen
+    //Main function to start capturing the screen - grabs the root window via MIT-SHM and returns it
+    //downsampled by DownsampleFactor in each dimension
     CaptureValue capture() override;
 private:
     //Create the requisite variables
     Error createVariables();
 
-    //Clean up variables
+    //Clean up variables - safe to call on partially (or never) initialised state
     void cleanup();
 
     //Standard X11 variables
@@ -43,9 +44,7 @@ private:
     //Per capture data and information
     XImage* pXImg;
     XShmSegmentInfo pShmInfo;
-
-    //Other variables
-    bool pAllocated;
+    bool pShmAttached; //Whether the X server has attached pShmInfo (and so must be detached in cleanup)
 };
 
 #endif

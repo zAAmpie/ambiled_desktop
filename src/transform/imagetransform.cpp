@@ -37,11 +37,11 @@ QImage ImageTransform::copyStrip(const QImage input, int stripSizePx, StripPlace
     case TopStrip:
         return input.copy(0, 0, input.width(), stripSizePx);
     case BottomStrip:
-        return input.copy(0, input.height() - stripSizePx - 1, input.width(), stripSizePx);
+        return input.copy(0, input.height() - stripSizePx, input.width(), stripSizePx);
     case LeftStrip:
         return input.copy(0, 0, stripSizePx, input.height());
     case RightStrip:
-        return input.copy(input.width() - stripSizePx - 1, 0, stripSizePx, input.height());
+        return input.copy(input.width() - stripSizePx, 0, stripSizePx, input.height());
     default:
         return QImage();
     }

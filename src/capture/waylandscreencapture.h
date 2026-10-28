@@ -42,9 +42,6 @@ public:
     //downsampled by DownsampleFactor in each dimension
     CaptureValue capture() override;
 
-    //Captured frames are this many times smaller than the screen in each dimension (power of two)
-    static constexpr int DownsampleFactor = 4;
-
 signals:
     //The portal issued a new (or rotated) restore_token - persist it so future sessions skip the share dialog
     void restoreTokenUpdated(QString token);
@@ -60,8 +57,10 @@ private slots:
     void onPrepareForSleep(bool sleeping);
 
 private:
-    //Kick off the CreateSession -> SelectSources -> Start -> OpenPipeWireRemote sequence
+    //Kick off negotiation: check the portal can share monitors at all, then createSession()
     void startNegotiation();
+    //The CreateSession -> SelectSources -> Start -> OpenPipeWireRemote sequence
+    void createSession();
     //Subscribe to a Request object's Response signal before issuing the call that creates it
     QString subscribeToRequest(const char *slot);
     //Negotiation/setup failed. While reconnecting this retries with backoff; otherwise (first attempt,
