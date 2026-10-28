@@ -5,9 +5,12 @@
 
 namespace {
 
-//How far into the screen the edge chase block reaches, as a fraction of the screen's size in that
-//direction - comfortably deeper than the transforms' default 10% sampling strips
-constexpr qreal EdgeChaseDepth = 0.2;
+//How far into the screen the chase patterns reach, as a fraction of the screen's size in that
+//direction - the same as the transforms' sampling strips (DEFAULT_STRIP_WIDTH_PERCENTAGE), so a bar
+//on one side stays within the region that side's LEDs sample
+constexpr qreal ChaseDepth = 0.1;
+//The block chase walks a ring of cells this many to a side - one cell deep is exactly ChaseDepth
+constexpr int BlockChaseCellsPerSide = 10;
 
 ParameterSpec colourSpec(const QString &key, const QString &label, TestPattern::Colour defaultColour)
 {
@@ -53,6 +56,8 @@ QString TestPattern::name(Type type)
     case ColourWheel: return QStringLiteral("Spinning colour wheel");
     case Alternating: return QStringLiteral("Alternating colours");
     case EdgeChase: return QStringLiteral("Edge chase");
+    case BlockChase: return QStringLiteral("Block chase");
+    case Letterbox: return QStringLiteral("Letterbox");
     }
     return QString();
 }
@@ -62,10 +67,12 @@ bool TestPattern::isAnimated() const
 {
     switch (pType)
     {
-    case SolidColour: return false;
+    case SolidColour:
+    case Letterbox: return false;
     case ColourWheel: return intParameter(QStringLiteral("rpm")) != 0;
     case Alternating:
-    case EdgeChase: return true;
+    case EdgeChase:
+    case BlockChase: return true;
     }
     return false;
 }
@@ -88,6 +95,14 @@ QList<ParameterSpec> TestPattern::parameterSpecs(Type type)
         return {colourSpec(QStringLiteral("colour"), QStringLiteral("Colour"), White),
                 intSpec(QStringLiteral("lapSeconds"), QStringLiteral("Time per lap"), 1, 60, 1, 10, QStringLiteral(" s")),
                 intSpec(QStringLiteral("blockPercent"), QStringLiteral("Block length"), 1, 25, 1, 5, QStringLiteral("% of edge"))};
+    case BlockChase:
+        return {colourSpec(QStringLiteral("colour"), QStringLiteral("Colour"), White),
+                intSpec(QStringLiteral("lapSeconds"), QStringLiteral("Time per lap"), 1, 60, 1, 10, QStringLiteral(" s"))};
+    case Letterbox:
+        //12% a side is 2.39:1 film on a 16:9 screen. Going past the black bar process's scan depth
+        //(25% by default) shows what happens when bars are too tall to be removed.
+        return {colourSpec(QStringLiteral("colour"), QStringLiteral("Picture colour"), White),
+                intSpec(QStringLiteral("barPercent"), QStringLiteral("Bar height"), 0, 40, 1, 12, QStringLiteral("% each"))};
     }
     return {};
 }
@@ -137,6 +152,17 @@ void TestPattern::render(QPainter &painter, const QRect &area, qint64 elapsedMs)
     case EdgeChase:
         renderEdgeChase(painter, area, elapsedMs);
         break;
+    case BlockChase:
+        renderBlockChase(painter, area, elapsedMs);
+        break;
+    case Letterbox:
+    {
+        //Black bars of equal height top and bottom, picture in between
+        int barHeight = area.height() * intParameter(QStringLiteral("barPercent")) / 100;
+        painter.fillRect(area, Qt::black);
+        painter.fillRect(area.adjusted(0, barHeight, 0, -barHeight), colourParameter(QStringLiteral("colour")));
+        break;
+    }
     }
 }
 
@@ -162,8 +188,8 @@ void TestPattern::renderEdgeChase(QPainter &painter, const QRect &area, qint64 e
     const qreal lapMs = qMax(1, intParameter(QStringLiteral("lapSeconds"))) * 1000.0;
     const qreal start = std::fmod(static_cast<qreal>(elapsedMs) / lapMs, 1.0) * perimeter;
     const qreal length = perimeter * intParameter(QStringLiteral("blockPercent")) / 100.0;
-    const qreal depthX = width * EdgeChaseDepth;  //Into the screen from the left/right edges
-    const qreal depthY = height * EdgeChaseDepth; //Into the screen from the top/bottom edges
+    const qreal depthX = width * ChaseDepth;  //Into the screen from the left/right edges
+    const qreal depthY = height * ChaseDepth; //Into the screen from the top/bottom edges
     const QColor colour = colourParameter(QStringLiteral("colour"));
 
     //Fills the part of [from, to) (perimeter distances, within one lap) that lies on each side
@@ -186,6 +212,35 @@ void TestPattern::renderEdgeChase(QPainter &painter, const QRect &area, qint64 e
     fillSpan(start, qMin(start + length, perimeter));
     if (start + length > perimeter)
         fillSpan(0, start + length - perimeter);
+}
+
+//A single cell stepping clockwise round the outer ring of a BlockChaseCellsPerSide-square grid,
+//starting at the top-left corner, on black. Every cell - corners included - is visited exactly once
+//per lap, and a cell never spans two sides, so unlike the edge chase nothing is lit on two sides at once.
+void TestPattern::renderBlockChase(QPainter &painter, const QRect &area, qint64 elapsedMs) const
+{
+    painter.fillRect(area, Qt::black);
+
+    constexpr int n = BlockChaseCellsPerSide;
+    constexpr int ringCells = 4 * (n - 1);
+    const qint64 lapMs = qMax(1, intParameter(QStringLiteral("lapSeconds"))) * 1000LL;
+    const int step = static_cast<int>((elapsedMs % lapMs) * ringCells / lapMs);
+
+    //Ring position -> grid cell: along the top, down the right, back along the bottom, up the left
+    int column, row;
+    if (step < n - 1)
+        column = step, row = 0;
+    else if (step < 2 * (n - 1))
+        column = n - 1, row = step - (n - 1);
+    else if (step < 3 * (n - 1))
+        column = (n - 1) - (step - 2 * (n - 1)), row = n - 1;
+    else
+        column = 0, row = (n - 1) - (step - 3 * (n - 1));
+
+    const qreal cellWidth = static_cast<qreal>(area.width()) / n;
+    const qreal cellHeight = static_cast<qreal>(area.height()) / n;
+    painter.fillRect(QRectF(column * cellWidth, row * cellHeight, cellWidth, cellHeight).translated(area.topLeft()),
+                     colourParameter(QStringLiteral("colour")));
 }
 
 QColor TestPattern::colourParameter(const QString &key) const

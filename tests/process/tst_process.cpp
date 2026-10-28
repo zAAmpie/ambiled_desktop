@@ -6,6 +6,7 @@
 #include "scaleprocess.h"
 #include "lowpassfilterprocess.h"
 #include "processmanager.h"
+#include "testpattern.h"
 #include <QSignalSpy>
 
 namespace {
@@ -39,6 +40,7 @@ private slots:
     void lowPassFilterProcess_convergesInBothDirections();
     void blackBarProcess_outputOutlivesInput();
     void processManager_appliesAfterTransformProcessToStrips();
+    void blackBarProcess_removesLetterboxTestPattern();
 };
 
 void TstProcess::blackBarProcess_removesBars()
@@ -315,6 +317,26 @@ void TstProcess::processManager_doesNotReuseWithStatefulProcess()
 
     QCOMPARE(spy.count(), 2);
     QVERIFY(spy.at(1).at(0).value<ImageStrips>().topLine.cacheKey() != spy.at(0).at(0).value<ImageStrips>().topLine.cacheKey());
+}
+
+void TstProcess::blackBarProcess_removesLetterboxTestPattern()
+{
+    //End to end with the Letterbox test pattern: bars within the default 25% scan depth are removed
+    //exactly, leaving only the picture...
+    TestPattern pattern(TestPattern::Letterbox);
+    pattern.setParameters({{QStringLiteral("colour"), TestPattern::Green}, {QStringLiteral("barPercent"), 12}});
+    BlackBarProcess process;
+
+    QImage result = process.process(pattern.render(QSize(160, 100), 0));
+    QCOMPARE(result.height(), 100 - 2 * 12);
+    QCOMPARE(result.pixel(0, 0), qRgb(0, 255, 0));
+    QCOMPARE(result.pixel(0, result.height() - 1), qRgb(0, 255, 0));
+
+    //...while bars taller than the scan depth are only partly removed - which the pattern makes visible
+    pattern.setParameters({{QStringLiteral("barPercent"), 30}});
+    result = process.process(pattern.render(QSize(160, 100), 0));
+    QVERIFY(result.height() > 100 - 2 * 30);
+    QCOMPARE(result.pixel(0, 0), qRgb(0, 0, 0));
 }
 
 QTEST_GUILESS_MAIN(TstProcess)

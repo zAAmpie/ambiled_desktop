@@ -28,6 +28,8 @@ private slots:
     void alternating_switchesEveryInterval();
     void edgeChase_travelsClockwiseFromTopLeft();
     void edgeChase_wrapsPastTopLeftCorner();
+    void blockChase_walksSingleCellsClockwise();
+    void letterbox_drawsBarsOfConfiguredHeight();
 };
 
 void TstTestPattern::defaultsComeFromSpecs()
@@ -131,6 +133,65 @@ void TstTestPattern::edgeChase_wrapsPastTopLeftCorner()
     QCOMPARE(image.pixel(15, 5), qRgb(255, 255, 255)); //Top edge, past the corner
     QCOMPARE(image.pixel(5, 5), qRgb(255, 255, 255));  //Left edge, just below the corner
     QCOMPARE(image.pixel(5, 50), qRgb(0, 0, 0));      //Further down the left edge
+}
+
+void TstTestPattern::blockChase_walksSingleCellsClockwise()
+{
+    //200x100 frame: a 10x10 grid of 20x10 cells, whose outer ring has 36 cells - with a 10 s lap,
+    //step k starts at k * 10000/36 ms
+    TestPattern pattern(TestPattern::BlockChase);
+    pattern.setParameters({{QStringLiteral("lapSeconds"), 10}});
+    const QRgb lit = qRgb(255, 255, 255);
+    const QRgb dark = qRgb(0, 0, 0);
+    auto stepTime = [](int step) {return (step * 10000 + 35) / 36;}; //Rounded up into the step
+
+    auto litPixels = [&](const QImage &image)
+    {
+        int count = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                count += image.pixel(x, y) == lit;
+        return count;
+    };
+
+    //Step 0: the top-left corner cell only
+    QImage first = pattern.render(QSize(200, 100), stepTime(0));
+    QCOMPARE(first.pixel(10, 5), lit);
+    QCOMPARE(first.pixel(30, 5), dark);
+    QCOMPARE(first.pixel(10, 15), dark);
+    QCOMPARE(litPixels(first), 20 * 10);
+
+    //Step 9: the top-right corner - one cell, not a bar on both the top and the right
+    QImage corner = pattern.render(QSize(200, 100), stepTime(9));
+    QCOMPARE(corner.pixel(190, 5), lit);
+    QCOMPARE(corner.pixel(170, 5), dark);
+    QCOMPARE(corner.pixel(190, 15), dark);
+    QCOMPARE(litPixels(corner), 20 * 10);
+
+    //Step 10: first cell down the right side
+    QCOMPARE(pattern.render(QSize(200, 100), stepTime(10)).pixel(190, 15), lit);
+
+    //Step 35: last cell, on the left side just below the top-left corner - then the lap restarts
+    QImage last = pattern.render(QSize(200, 100), stepTime(35));
+    QCOMPARE(last.pixel(10, 15), lit);
+    QCOMPARE(last.pixel(10, 5), dark);
+    QCOMPARE(pattern.render(QSize(200, 100), 10000).pixel(10, 5), lit);
+}
+
+void TstTestPattern::letterbox_drawsBarsOfConfiguredHeight()
+{
+    TestPattern pattern(TestPattern::Letterbox);
+    pattern.setParameters({{QStringLiteral("colour"), TestPattern::Red}, {QStringLiteral("barPercent"), 20}});
+    QVERIFY(!pattern.isAnimated());
+
+    //20% of 100 rows = 20-row bars, rows 20-79 picture
+    QImage image = pattern.render(QSize(50, 100), 0);
+    QVERIFY(isUniform(image.copy(0, 0, 50, 20), qRgb(0, 0, 0)));
+    QVERIFY(isUniform(image.copy(0, 20, 50, 60), qRgb(255, 0, 0)));
+    QVERIFY(isUniform(image.copy(0, 80, 50, 20), qRgb(0, 0, 0)));
+
+    pattern.setParameters({{QStringLiteral("barPercent"), 0}});
+    QVERIFY(isUniform(pattern.render(QSize(50, 100), 0), qRgb(255, 0, 0)));
 }
 
 QTEST_GUILESS_MAIN(TstTestPattern)

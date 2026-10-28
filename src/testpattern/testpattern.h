@@ -10,12 +10,13 @@ class QPainter;
 class TestPattern
 {
     /* A synthetic pattern for testing the LED output - e.g. solid colours for colour temperature,
-     * a spinning colour wheel for blending, hard cuts for the low-pass filter's response, and a
-     * block chasing round the edge for the LED layout. A plain value type that renders purely
-     * from its parameters and the elapsed time, so it can be copied freely between threads. */
+     * a spinning colour wheel for blending, hard cuts for the low-pass filter's response, a bar or
+     * block travelling round the edge for the LED layout, and letterboxed content for black bar
+     * removal. A plain value type that renders purely from its parameters and the elapsed time, so
+     * it can be copied freely between threads. */
 public:
-    enum Type {SolidColour, ColourWheel, Alternating, EdgeChase};
-    static constexpr Type Types[] = {SolidColour, ColourWheel, Alternating, EdgeChase};
+    enum Type {SolidColour, ColourWheel, Alternating, EdgeChase, BlockChase, Letterbox};
+    static constexpr Type Types[] = {SolidColour, ColourWheel, Alternating, EdgeChase, BlockChase, Letterbox};
     //Colours offered by the Choice parameters
     enum Colour {Red, Green, Blue, White, Black};
 
@@ -40,6 +41,7 @@ private:
     int intParameter(const QString &key) const;
 
     void renderEdgeChase(QPainter &painter, const QRect &area, qint64 elapsedMs) const;
+    void renderBlockChase(QPainter &painter, const QRect &area, qint64 elapsedMs) const;
 
     Type pType;
     QVariantMap pParameters;

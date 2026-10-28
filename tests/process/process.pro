@@ -9,10 +9,12 @@ INCLUDEPATH += \
     ../../src/process \
     ../../src/transform \
     ../../src/leds \
-    ../../src/common
+    ../../src/common \
+    ../../src/testpattern
 
 SOURCES += \
     tst_process.cpp \
+    ../../src/testpattern/testpattern.cpp \
     ../../src/process/imageprocess.cpp \
     ../../src/process/blackbarprocess.cpp \
     ../../src/process/scaleprocess.cpp \
