@@ -110,6 +110,13 @@ CaptureValue WaylandScreenCapture::capture()
     return CaptureValue(pFrame);
 }
 
+//The shared monitor, as reported by the portal (empty if it didn't say)
+QRect WaylandScreenCapture::outputGeometry() const
+{
+    QMutexLocker locker(&pFrameMutex);
+    return pOutputGeometry;
+}
+
 //Subscribe to a Request object's Response signal before issuing the call that creates it, per the
 //portal spec's escaping rule: strip the leading ':' from our unique bus name and replace '.' with '_'
 QString WaylandScreenCapture::subscribeToRequest(const char *slot)
@@ -370,6 +377,29 @@ void WaylandScreenCapture::onStartResponse(uint response, QVariantMap results)
         fail(QStringLiteral("WaylandScreenCapture: Portal did not return a PipeWire stream"));
         return;
     }
+
+    //Optional per-stream "position" and "size" (both (ii), in the compositor's logical coordinates)
+    //say which monitor was shared - used to show test patterns on the captured screen
+    const QVariantMap streamProperties = streams.first().second;
+    auto readPair = [&](const QString &key, int &first, int &second)
+    {
+        if (!streamProperties.contains(key))
+            return false;
+        const QDBusArgument argument = qvariant_cast<QDBusArgument>(streamProperties.value(key));
+        argument.beginStructure();
+        argument >> first >> second;
+        argument.endStructure();
+        return true;
+    };
+    int x = 0, y = 0, width = 0, height = 0;
+    bool hasPosition = readPair(QStringLiteral("position"), x, y);
+    bool hasSize = readPair(QStringLiteral("size"), width, height);
+    {
+        QMutexLocker locker(&pFrameMutex);
+        pOutputGeometry = (hasPosition && hasSize) ? QRect(x, y, width, height) : QRect();
+    }
+    if (!hasPosition || !hasSize)
+        qInfo() << "WaylandScreenCapture: Portal didn't report which monitor is shared (position/size missing)";
 
     QDBusMessage message = QDBusMessage::createMethodCall(
         QStringLiteral("org.freedesktop.portal.Desktop"), QStringLiteral("/org/freedesktop/portal/desktop"),

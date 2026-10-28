@@ -2,6 +2,7 @@
 #include "ambiled.h"
 #include "parameterform.h"
 #include "pixmaputils.h"
+#include "testpatternwindow.h"
 
 //Constructor
 AmbiLED::AmbiLED(QWidget *parent)
@@ -124,6 +125,8 @@ AmbiLED::~AmbiLED()
 	//Free frame buffer data
     pScreenManager->deleteLater();
     pSerialManager->deleteLater();
+
+    delete pTestPatternWindow;
 }
 
 //Set up UI
@@ -516,13 +519,84 @@ void AmbiLED::uiTestOutputChanged()
 {
     pScreenManager->setTestPattern(currentTestPattern());
     pScreenManager->setTestPatternGeneration(pTestOutputGroup->checkedId() == TestOutputDirect);
+    updateTestPatternWindow();
 }
 
 //Test tab: the chosen pattern or any of its parameters changed - applied live (the pattern's
 //clock keeps running, so tweaking e.g. the wheel's speed doesn't restart it)
 void AmbiLED::uiTestPatternChanged()
 {
-    pScreenManager->setTestPattern(currentTestPattern());
+    TestPattern pattern = currentTestPattern();
+    pScreenManager->setTestPattern(pattern);
+    if (pTestPatternWindow)
+        pTestPatternWindow->setPattern(pattern);
+}
+
+//Shows, moves or hides the on-screen pattern window to match the Test tab
+void AmbiLED::updateTestPatternWindow()
+{
+    if (pTestOutputGroup->checkedId() != TestOutputOnScreen)
+    {
+        if (pTestPatternWindow)
+            pTestPatternWindow->hide();
+        return;
+    }
+
+    if (!pTestPatternWindow)
+    {
+        pTestPatternWindow = new TestPatternWindow();
+        //Dismissed from the pattern window itself (Esc) - reflect that in the Test tab
+        connect(pTestPatternWindow, &TestPatternWindow::dismissed, this, [this]
+        {
+            pTestOutputGroup->button(TestOutputOff)->setChecked(true);
+        });
+    }
+    pTestPatternWindow->setPattern(currentTestPattern());
+    pTestPatternWindow->showOn(testPatternScreen());
+
+    //Ask for this window back on top so it can still be used - the compositor has the final say
+    raise();
+    activateWindow();
+}
+
+//Lists the desktop's screens in the Test tab's display choice, after an "auto" entry
+void AmbiLED::populateTestScreens()
+{
+    QString selected = pTestScreenComboBox->currentData().toString();
+    QSignalBlocker blocker(pTestScreenComboBox);
+    pTestScreenComboBox->clear();
+    pTestScreenComboBox->addItem(tr("Captured display (auto)"), QString());
+    for (QScreen *screen : QGuiApplication::screens())
+    {
+        QRect geometry = screen->geometry();
+        pTestScreenComboBox->addItem(tr("%1 (%2x%3 at %4,%5)").arg(screen->name()).arg(geometry.width()).arg(geometry.height())
+                                         .arg(geometry.x()).arg(geometry.y()), screen->name());
+    }
+    pTestScreenComboBox->setCurrentIndex(qMax(0, pTestScreenComboBox->findData(selected)));
+}
+
+//The screen to show an on-screen pattern on - see header
+QScreen *AmbiLED::testPatternScreen()
+{
+    QString name = pTestScreenComboBox->currentData().toString();
+    const QList<QScreen *> screens = QGuiApplication::screens();
+    if (!name.isEmpty())
+    {
+        for (QScreen *screen : screens)
+            if (screen->name() == name)
+                return screen;
+    }
+
+    //Auto: match the captured output's position on the desktop (sizes can differ in rounding
+    //under fractional scaling, positions are exact)
+    QRect captured = pScreenManager->capturedOutputGeometry();
+    if (captured.isValid())
+    {
+        for (QScreen *screen : screens)
+            if (screen->geometry().topLeft() == captured.topLeft())
+                return screen;
+    }
+    return QGuiApplication::primaryScreen();
 }
 
 //Visualise fullscreen mode toggled
@@ -777,10 +851,19 @@ QWidget *AmbiLED::createTestTab()
         outputLayout->addWidget(button);
     };
     addOutput(tr("Off (normal screen capture)"), TestOutputOff);
+    addOutput(tr("On screen (shown fullscreen on the display, then captured as usual - Esc closes it)"), TestOutputOnScreen);
     addOutput(tr("Direct (fed straight into processing, skipping screen capture)"), TestOutputDirect);
     pTestOutputGroup->button(TestOutputOff)->setChecked(true);
     connect(pTestOutputGroup, &QButtonGroup::idToggled, this, [this](int, bool checked) {if (checked) uiTestOutputChanged();});
     layout->addRow(tr("Test pattern"), outputWidget);
+
+    //Display for the on-screen pattern
+    pTestScreenComboBox = new QComboBox(tab);
+    populateTestScreens();
+    connect(qApp, &QGuiApplication::screenAdded, this, &AmbiLED::populateTestScreens);
+    connect(qApp, &QGuiApplication::screenRemoved, this, &AmbiLED::populateTestScreens);
+    connect(pTestScreenComboBox, &QComboBox::currentIndexChanged, this, &AmbiLED::updateTestPatternWindow);
+    layout->addRow(tr("Display"), pTestScreenComboBox);
 
     //Pattern, with a parameter page per pattern type
     pTestPatternComboBox = new QComboBox(tab);

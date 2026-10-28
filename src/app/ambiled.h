@@ -26,7 +26,9 @@ class QComboBox;
 class QCheckBox;
 class QButtonGroup;
 class QStackedWidget;
+class QScreen;
 class ParameterForm;
+class TestPatternWindow;
 
 class AmbiLED : public QMainWindow
 {
@@ -198,12 +200,21 @@ private:
 
     //===== TEST TAB =====
     //Where a test pattern goes - nothing in the Test tab is persisted, so tests never resume at startup
-    enum TestOutput {TestOutputOff, TestOutputDirect};
-    //Builds the Test tab (output choice, pattern choice + a ParameterForm per pattern, verbose serial log)
+    enum TestOutput {TestOutputOff, TestOutputDirect, TestOutputOnScreen};
+    //Builds the Test tab (output choice, display, pattern choice + a ParameterForm per pattern, verbose serial log)
     QWidget *createTestTab();
     //The pattern currently configured in the Test tab
     TestPattern currentTestPattern() const;
+    //Lists the desktop's screens in the Test tab's display choice, after an "auto" entry
+    void populateTestScreens();
+    //The screen to show an on-screen pattern on: the chosen one, or for "auto" the captured one if
+    //the capture backend knows it, otherwise the primary screen
+    QScreen *testPatternScreen();
+    //Shows, moves or hides the on-screen pattern window to match the Test tab
+    void updateTestPatternWindow();
     QButtonGroup *pTestOutputGroup;
+    QComboBox *pTestScreenComboBox;
+    TestPatternWindow *pTestPatternWindow = nullptr;
     QComboBox *pTestPatternComboBox;
     QStackedWidget *pTestPatternPages;
     QList<ParameterForm *> pTestPatternForms; //Indexed like pTestPatternComboBox/pTestPatternPages

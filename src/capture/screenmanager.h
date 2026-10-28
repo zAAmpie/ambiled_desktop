@@ -31,6 +31,9 @@ public:
     //Screen size
     ScreenSize screenSize() const {return pScreen->size();}
 
+    //Where the captured output sits on the desktop, if the backend knows (thread-safe) - see ScreenCapture::outputGeometry
+    QRect capturedOutputGeometry();
+
     //Enable/disable capturing (thread-safe)
     void setEnabled(bool state);
     void enable() {setEnabled(true);}

@@ -42,6 +42,9 @@ public:
     //downsampled by DownsampleFactor in each dimension
     CaptureValue capture() override;
 
+    //The shared monitor, as reported by the portal (empty if it didn't say)
+    QRect outputGeometry() const override;
+
 signals:
     //The portal issued a new (or rotated) restore_token - persist it so future sessions skip the share dialog
     void restoreTokenUpdated(QString token);
@@ -106,8 +109,9 @@ private:
 
     //Newest buffer delivered by PipeWire, dequeued and held (not yet queued back) so capture() can
     //copy out of it. Swapped in from the PipeWire thread, read from capture() - both under pFrameMutex.
-    QMutex pFrameMutex;
+    mutable QMutex pFrameMutex;
     pw_buffer *pHeldBuffer;
+    QRect pOutputGeometry; //Shared monitor from the portal's Start response - guarded by pFrameMutex
     quint64 pHeldSequence;   //Bumped each time a new buffer is held
     quint64 pFrameSequence;  //pHeldSequence that pFrame was last copied from
 

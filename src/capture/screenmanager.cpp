@@ -136,6 +136,13 @@ void ScreenManager::setEnabled(bool state)
         pFrameTimer->stop();
 }
 
+//Where the captured output sits on the desktop, if the backend knows (thread-safe)
+QRect ScreenManager::capturedOutputGeometry()
+{
+    QMutexLocker locker(&pMutex);
+    return pScreen->outputGeometry();
+}
+
 //Test pattern to render while test pattern mode is enabled (thread-safe)
 void ScreenManager::setTestPattern(const TestPattern &pattern)
 {

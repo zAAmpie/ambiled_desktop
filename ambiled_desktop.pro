@@ -1,4 +1,4 @@
-QT       += core gui serialport dbus
+QT       += core gui serialport dbus opengl
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -49,6 +49,7 @@ SOURCES += \
     src/process/scaleprocess.cpp \
     src/serial/serialmanager.cpp \
     src/testpattern/testpattern.cpp \
+    src/testpattern/testpatternwindow.cpp \
     src/transform/blockstriptransform.cpp \
     src/transform/blocktransform.cpp \
     src/transform/imagetransform.cpp \
@@ -82,6 +83,7 @@ HEADERS += \
     src/process/scaleprocess.h \
     src/serial/serialmanager.h \
     src/testpattern/testpattern.h \
+    src/testpattern/testpatternwindow.h \
     src/transform/blockstriptransform.h \
     src/transform/blocktransform.h \
     src/transform/imagetransform.h \
