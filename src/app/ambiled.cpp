@@ -831,9 +831,13 @@ void AmbiLED::screenManagerReadyFrame(QImage screenImage)
     if (pFullscreenMode)
         displayFullScreen(screenImage);
 
-    //Reset idle mode if currently activated
+    //Reset idle mode if currently activated - capture has recovered, so the failure message
+    //screenManagerFailed() left in the debug label no longer applies
     if (pCaptureIdleMode)
+    {
         disableIdleMode();
+        ui.debugLabel->clear();
+    }
 
     //Send the captured frame for processing
     emit processManagerStartProcess(screenImage, pLeds->getStripSizes());
