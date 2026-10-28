@@ -27,9 +27,18 @@ signals:
 protected:
     void paintGL() override;
     void keyPressEvent(QKeyEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
     bool event(QEvent *event) override;
 
 private:
+    //Shows the "how to get out" hint for a few seconds, then fades it out
+    void showHint();
+    //0 (gone) to 1 (fully shown)
+    qreal hintOpacity() const;
+    void paintHint(QPainter &painter, qreal opacity);
+
     TestPattern pPattern;
     QElapsedTimer pClock;
+    QElapsedTimer pHintClock;
+    QPointF pLastMousePosition;
 };
