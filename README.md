@@ -13,7 +13,8 @@ updated colours to the LED hardware.
 - Multiple screen capture backends, picked automatically for the platform:
   - Windows: DXGI (preferred), DirectX 11, DirectX 9, GDI
   - Linux: Wayland (via the `org.freedesktop.portal.ScreenCast` portal + PipeWire, preferred
-    when running under a Wayland session) or X11 (via XShm shared-memory capture)
+    when running under a Wayland session, and recovering automatically after suspend) or X11
+    (via XShm shared-memory capture)
 - Configurable capture frame rate
 - Configurable LED strip layout (top/left/right/bottom-left/bottom-gap/bottom-right counts)
 - A pipeline of image processing steps (black-bar removal, scaling, low-pass filtering) that
@@ -48,9 +49,13 @@ The source tree mirrors this pipeline:
   [waylandscreencapture](src/capture/waylandscreencapture.h)) implements it for one
   platform/API. Unlike the others, `WaylandScreenCapture` is asynchronous: it negotiates a
   screen-share session over D-Bus with `org.freedesktop.portal.ScreenCast` (persisting the
-  portal's `restore_token` via `QSettings` so the share dialog only appears once), then reads
-  frames from a PipeWire video stream running on its own thread; `capture()` just returns
-  whichever frame that stream delivered most recently rather than grabbing one synchronously.
+  portal's `restore_token` via `QSettings` so the share dialog only appears once), then
+  receives frames from a PipeWire video stream on its own thread. That thread only holds on to
+  the newest buffer; `capture()` copies out of it on demand, downsampling 4× in each dimension
+  while copying ([imageutils.h](src/common/imageutils.h)), so frames are only copied at the
+  app's capture rate and not at all when nothing new arrived. If the stream or portal session
+  breaks, or the system resumes from suspend, it reconnects itself with backoff, reusing the
+  `restore_token` so no dialog is shown.
   [screenmanager.h](src/capture/screenmanager.h)'s `ScreenManager` owns the active backend,
   auto-selecting Wayland or X11 at startup based on `QGuiApplication::platformName()`, polls it
   on a timer at the configured frame rate, and emits `readyFrame` with the captured image.
@@ -58,8 +63,14 @@ The source tree mirrors this pipeline:
   is the base class for an image-processing step
   ([blackbarprocess](src/process/blackbarprocess.h), [scaleprocess](src/process/scaleprocess.h) —
   which also covers linear/cubic scaling, [lowpassfilterprocess](src/process/lowpassfilterprocess.h)).
-  [processmanager.h](src/process/processmanager.h)'s `ProcessManager` runs the enabled steps in
-  priority order, then applies an `ImageTransform` to reduce the result to edge strips.
+  Each step declares a `stage()`: before-transform steps (black-bar removal, scaling) run on the
+  captured image, after-transform steps (the low-pass filter) run on the resulting LED values.
+  [processmanager.h](src/process/processmanager.h)'s `ProcessManager` runs the enabled
+  before-transform steps in priority order, applies an `ImageTransform` to reduce the result to
+  edge strips, then runs the after-transform steps on all strips packed into one row. It only
+  ever processes the latest frame: a frame that arrives while the previous one is still waiting
+  replaces it rather than queueing behind it, and an unchanged frame reuses the previous output
+  (unless a stateful step like the low-pass filter needs every tick).
 - **[src/transform/](src/transform/)** — `ImageTransform` ([imagetransform.h](src/transform/imagetransform.h))
   is the base class for turning an image into `ImageStrips` (one thin image per screen edge).
   Implementations: [simpletransform](src/transform/simpletransform.h) (plain average),
@@ -79,7 +90,9 @@ The source tree mirrors this pipeline:
 - **[src/common/](src/common/)** — shared value types (`ScreenSize`, `StripSizes`,
   `ReturnValue<T>` error-handling helper in [types.h](src/common/types.h)) and small
   utilities ([util.h](src/common/util.h), [pixmaputils.h](src/common/pixmaputils.h),
-  [execthread.h](src/common/execthread.h)) used across the pipeline.
+  [imageutils.h](src/common/imageutils.h), [execthread.h](src/common/execthread.h)) used across
+  the pipeline, plus the per-stage timing instrumentation in [perfstats.h](src/common/perfstats.h)
+  (see [Measuring performance](#measuring-performance)).
 
 ## Building
 
@@ -88,25 +101,37 @@ This is a Qt widgets application built with `qmake`. It targets **Qt 6** (`QtCor
 
 ### Linux
 
-Install Qt 6 base, widgets, serial port and D-Bus modules, the X11 development libraries used
-by the X11 capture backend, and PipeWire's development headers used by the Wayland capture
-backend (package names below are for Arch/CachyOS; adjust for your distro):
+Install a compiler toolchain, Qt 6 base, widgets, serial port and D-Bus modules, the X11
+development libraries used by the X11 capture backend, and PipeWire's development headers used
+by the Wayland capture backend (package names below are for Arch/CachyOS; adjust for your
+distro):
 
 ```sh
-sudo pacman -S qt6-base qt6-serialport libx11 libpipewire
+sudo pacman -S --needed base-devel qt6-base qt6-serialport libx11 libxext libpipewire
 ```
-
-The Wayland backend also needs `xdg-desktop-portal` plus a backend for your desktop
-environment (`xdg-desktop-portal-kde`, `xdg-desktop-portal-gnome`, `xdg-desktop-portal-gtk`,
-...) installed and running at runtime - these aren't a *build*-time dependency, only a
-runtime one, since the app talks to them over D-Bus.
 
 Then build:
 
 ```sh
-qmake6 ambiled_desktop.pro
-make
+mkdir -p build-linux && cd build-linux
+qmake6 ../ambiled_desktop.pro
+make -j$(nproc)
 ```
+
+At runtime:
+
+- The Wayland backend needs `xdg-desktop-portal` plus the backend for your desktop environment
+  (`xdg-desktop-portal-kde`, `xdg-desktop-portal-gnome`, ...) installed and running, since the
+  app talks to them over D-Bus. If screen sharing fails with "Failed to create portal session
+  (response 2)", the portal backend can't screen-cast at all - check that e.g. Spectacle's
+  screen recording works.
+- Your user needs access to the serial device, which on Arch-based distros means being in the
+  `uucp` group (`sudo usermod -aG uucp $USER`, then log out and back in).
+
+Prefer building on the machine that will run the app. On distros with CPU-optimised
+repositories (e.g. CachyOS's `znver4`/x86-64-v4 repos), glibc marks every binary linked
+against it as needing that ISA level, so a binary built there refuses to start on an older CPU
+with "CPU ISA level is lower than required", even though the app's own code is generic x86-64.
 
 ### Windows
 
@@ -144,10 +169,59 @@ Currently covered:
 - **[tests/transform/](tests/transform/)** — for every `ImageTransform` implementation
   (simple/strip/block-strip/block), verifies each of the four output strips has the requested
   size and reflects the correct edge of the input image.
-- **[tests/process/](tests/process/)** — `BlackBarProcess` (bar removal and the unbarred
-  passthrough case), `ScaleProcess` (all three interpolation modes, both the fixed-size and
-  percentage constructors), and `LowPassFilterProcess` (first-frame behaviour and repeated
-  calls).
+- **[tests/process/](tests/process/)** — `BlackBarProcess` (bar removal, the unbarred
+  passthrough case, and that its zero-copy output outlives its input), `ScaleProcess` (all
+  three interpolation modes, both the fixed-size and percentage constructors),
+  `LowPassFilterProcess` (first-frame behaviour, smoothing, and converging both up and down),
+  and `ProcessManager` (latest-frame-wins handoff, reusing output for an unchanged frame, and
+  running after-transform steps on the strips).
+- **[tests/common/](tests/common/)** — `ImageUtils::downsample32` (per-channel averaging,
+  no overflow at full intensity, row sampling, stride padding).
+
+## Measuring performance
+
+Performance changes should be judged on measurements rather than assumptions. There are three
+tools, from most isolated to most realistic:
+
+**Benchmarks** — [tests/bench/](tests/bench/) is a `QBENCHMARK` suite running every transform
+and process (and the capture downsampler) at 1080p, 1440p and 2160p on deterministic noise
+frames. It's built with the tests but isn't a `testcase`, so `make check` stays fast. Run it
+through the summary script for one line per case:
+
+```sh
+tests/bench/summarize.sh build-tests/bench/bench              # everything
+tests/bench/summarize.sh build-tests/bench/bench pipelineDefault  # one case
+```
+
+Each line reports wall time *and* process-wide CPU time per iteration. The difference matters:
+Qt 6 runs large smooth scales on its own thread pool, so wall time alone understates their
+cost. Benchmarks reuse a frame that stays in CPU cache, so they understate memory-bound stages
+(like the capture copy) compared to the live app.
+
+**Per-stage timings in the running app** — [perfstats.h](src/common/perfstats.h) logs count,
+rate, mean, p95 and max for each pipeline stage every 5 seconds: `capture`,
+`wayland.pw-frame` (buffers delivered by PipeWire), each `process.*` step, `transform`,
+`process.total`, `process.dropped`/`process.reused`, and the GUI-thread `gui.*` handlers. It
+costs nothing unless enabled:
+
+```sh
+QT_LOGGING_RULES="ambiled.perf.debug=true" \
+QT_MESSAGE_PATTERN="%{time h:mm:ss} %{category}: %{message}" \
+./build-linux/ambiled_desktop 2>&1 | tee ~/ambiled-perf.log
+```
+
+**Per-thread CPU usage** — [tests/bench/measure_live.sh](tests/bench/measure_live.sh) samples
+`/proc` for a running instance and prints each thread's CPU % over a window (100% = one core).
+The capture and process threads are named `ambiled-capture` and `ambiled-process`:
+
+```sh
+tests/bench/measure_live.sh "video-fullscreen" 30 | tee -a ~/ambiled-perf-cpu.txt
+```
+
+For before/after comparisons, run the same scenarios each time (e.g. static desktop,
+fullscreen video, letterboxed video with the low-pass filter on) at the same resolution and
+frame rate, with the window hidden in the tray. The live preview has a significant cost of
+its own when the window is visible.
 
 ## License
 
