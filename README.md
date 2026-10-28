@@ -26,8 +26,11 @@ updated colours to the LED hardware.
   reading reported by the hardware over serial
 - A simple framed serial protocol to the LED controller (show/firmware/read-bytes/lux
   commands, with parity or CRC checking) with automatic reconnect if the device disappears
-- System tray icon with live connected/disconnected status, debug/visualise modes for
-  previewing the captured and processed image, and persisted settings between runs
+- System tray icon with live connected/disconnected status, a visualise mode for previewing the
+  captured and processed image, and persisted settings between runs
+- A Test tab with test patterns (solid colours, a spinning colour wheel, alternating colours,
+  edge/block chases and a letterbox) shown fullscreen on the captured display or fed straight
+  into processing - see [Test patterns](#test-patterns)
 
 ## Architecture
 
@@ -58,7 +61,10 @@ The source tree mirrors this pipeline:
   `restore_token` so no dialog is shown.
   [screenmanager.h](src/capture/screenmanager.h)'s `ScreenManager` owns the active backend,
   auto-selecting Wayland or X11 at startup based on `QGuiApplication::platformName()`, polls it
-  on a timer at the configured frame rate, and emits `readyFrame` with the captured image.
+  on a timer at the configured frame rate, and emits `readyFrame` with the captured image (or,
+  in the Test tab's "Direct" mode, a rendered test pattern instead). Backends that know which
+  monitor they capture report it via `outputGeometry()` (Wayland gets it from the portal), so
+  on-screen test patterns can default to the captured display.
 - **[src/process/](src/process/)** — `ImageProcess` ([imageprocess.h](src/process/imageprocess.h))
   is the base class for an image-processing step
   ([blackbarprocess](src/process/blackbarprocess.h), [scaleprocess](src/process/scaleprocess.h) —
@@ -83,10 +89,19 @@ The source tree mirrors this pipeline:
 - **[src/serial/serialmanager.h](src/serial/serialmanager.h)** — frames and writes the LED
   image to the serial device, requests firmware version/lux readings, verifies parity/CRC,
   and automatically retries the connection once a second if the device is disconnected.
+- **[src/testpattern/](src/testpattern/)** — `TestPattern` ([testpattern.h](src/testpattern/testpattern.h))
+  is a copyable value type that renders a test pattern purely from its parameters and the elapsed
+  time, so the same code feeds both test outputs: `ScreenManager` (Direct) and
+  [testpatternwindow.h](src/testpattern/testpatternwindow.h)'s `TestPatternWindow`, a fullscreen
+  `QOpenGLWindow` that paints it on the captured display (through OpenGL, so even animated
+  patterns at 4K cost the CPU very little).
 - **[src/app/](src/app/)** — [ambiled.h](src/app/ambiled.h) / [ambiled.cpp](src/app/ambiled.cpp) /
   [ambiled.ui](src/app/ambiled.ui) hold the main window and system tray integration that wires
   the managers together, exposes their settings in the UI, and persists them with
-  `QSettings`; [main.cpp](src/app/main.cpp) is the entry point.
+  `QSettings`; [main.cpp](src/app/main.cpp) is the entry point. Processes and test patterns
+  describe their settings as `ParameterSpec`s ([parameterspec.h](src/common/parameterspec.h)),
+  and [parameterform.h](src/app/parameterform.h)'s `ParameterForm` builds their config UI from
+  those, so adding a parameter needs no UI code.
 - **[src/common/](src/common/)** — shared value types (`ScreenSize`, `StripSizes`,
   `ReturnValue<T>` error-handling helper in [types.h](src/common/types.h)) and small
   utilities ([util.h](src/common/util.h), [pixmaputils.h](src/common/pixmaputils.h),
@@ -97,14 +112,14 @@ The source tree mirrors this pipeline:
 ## Building
 
 This is a Qt widgets application built with `qmake`. It targets **Qt 6** (`QtCore`,
-`QtGui`, `QtWidgets`, `QtSerialPort`).
+`QtGui`, `QtWidgets`, `QtSerialPort`, `QtDBus`, `QtOpenGL`).
 
 ### Linux
 
-Install a compiler toolchain, Qt 6 base, widgets, serial port and D-Bus modules, the X11
-development libraries used by the X11 capture backend, and PipeWire's development headers used
-by the Wayland capture backend (package names below are for Arch/CachyOS; adjust for your
-distro):
+Install a compiler toolchain, Qt 6 base (which on Arch includes the widgets, D-Bus and OpenGL
+modules) and its serial port module, the X11 development libraries used by the X11 capture
+backend, and PipeWire's development headers used by the Wayland capture backend (package names
+below are for Arch/CachyOS; adjust for your distro):
 
 ```sh
 sudo pacman -S --needed base-devel qt6-base qt6-serialport libx11 libxext libpipewire
@@ -122,9 +137,9 @@ At runtime:
 
 - The Wayland backend needs `xdg-desktop-portal` plus the backend for your desktop environment
   (`xdg-desktop-portal-kde`, `xdg-desktop-portal-gnome`, ...) installed and running, since the
-  app talks to them over D-Bus. If screen sharing fails with "Failed to create portal session
-  (response 2)", the portal backend can't screen-cast at all - check that e.g. Spectacle's
-  screen recording works.
+  app talks to them over D-Bus. If the app reports that "the desktop portal can't share
+  screens", the portal backend can't screen-cast at all - check that e.g. Spectacle's screen
+  recording works.
 - Your user needs access to the serial device, which on Arch-based distros means being in the
   `uucp` group (`sudo usermod -aG uucp $USER`, then log out and back in).
 
@@ -148,6 +163,41 @@ The platform-specific capture backends and libraries are scoped in
 [ambiled_desktop.pro](ambiled_desktop.pro) with `win32:`/`unix:`, so each platform only links
 against the libraries it actually needs.
 
+## Test patterns
+
+The **Test** tab drives the LEDs from known patterns instead of whatever is on screen. Nothing on
+it is saved, so a test never resumes at the next start.
+
+**Output:**
+
+- **Off** — normal screen capture.
+- **On screen** — the pattern is shown fullscreen on the chosen display ("Captured display
+  (auto)" picks the one being captured where the capture backend knows it) and then captured like
+  anything else, so the whole chain is tested and the screen can be compared with the LEDs by eye,
+  e.g. while tuning colour temperature on the Advanced tab. The main window can't be forced above
+  a fullscreen window, so use Alt+Tab to get back to it; Esc closes the pattern. A hint saying so
+  shows in the middle of the screen (which no LED samples) for a few seconds, and again when the
+  mouse moves.
+- **Direct** — the pattern is fed straight into processing, skipping screen capture. Useful when
+  the captured display isn't in front of you, or to rule out capture.
+
+**Patterns:**
+
+| Pattern | Use it to check |
+|---|---|
+| Solid colour (red/green/blue/white/black, at a level) | colour temperature and white balance, dim levels |
+| Spinning colour wheel | colour blending between neighbouring LEDs |
+| Alternating colours (two colours, switch interval) | the low-pass filter's response to hard cuts |
+| Edge chase (a bar travelling clockwise from the top-left) | LED order and strip direction |
+| Block chase (one cell of a 10x10 grid stepping round the edge) | LED layout, with each corner lit exactly once |
+| Letterbox (black bars of adjustable height) | black bar removal, including bars taller than its scan depth |
+
+The chase patterns have black backgrounds, so turn black bar removal off while using them -
+otherwise it crops away the black rows around the block.
+
+The Test tab also has "Show raw serial replies in the status line" for debugging the serial
+protocol.
+
 ## Testing
 
 Unit tests live under [tests/](tests/), one `qmake` subproject per module under test, using
@@ -168,15 +218,20 @@ Currently covered:
 
 - **[tests/transform/](tests/transform/)** — for every `ImageTransform` implementation
   (simple/strip/block-strip/block), verifies each of the four output strips has the requested
-  size and reflects the correct edge of the input image.
+  size and reflects the correct edge of the input image, including its outermost row/column.
 - **[tests/process/](tests/process/)** — `BlackBarProcess` (bar removal, the unbarred
-  passthrough case, and that its zero-copy output outlives its input), `ScaleProcess` (all
+  passthrough case, that its zero-copy output outlives its input, and end to end with the
+  Letterbox test pattern within and beyond its scan depth), `ScaleProcess` (all
   three interpolation modes, both the fixed-size and percentage constructors),
   `LowPassFilterProcess` (first-frame behaviour, smoothing, and converging both up and down),
   and `ProcessManager` (latest-frame-wins handoff, reusing output for an unchanged frame, and
   running after-transform steps on the strips).
 - **[tests/common/](tests/common/)** — `ImageUtils::downsample32` (per-channel averaging,
   no overflow at full intensity, row sampling, stride padding).
+- **[tests/testpattern/](tests/testpattern/)** — `TestPattern`: defaults come from the parameter
+  specs, and each pattern renders what it should over time (exact solid colours, the wheel
+  rotating, alternation on the interval, the edge chase travelling and wrapping, the block chase
+  visiting each cell once, letterbox bar heights).
 - **[tests/capture/](tests/capture/)** (Unix only) — `X11ScreenCapture` against whatever X
   server `$DISPLAY` points at (XWayland on a Wayland desktop; it only reads the root window):
   produces correctly downsampled frames, fails cleanly without a display, and can be destroyed
