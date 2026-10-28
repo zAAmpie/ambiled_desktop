@@ -828,7 +828,7 @@ void AmbiLED::screenManagerReadyFrame(QImage screenImage)
     PerfTimer timer(pGuiFrameStats);
 
     //Display fullscreen on UI
-    if (pFullscreenMode)
+    if (pFullscreenMode && previewDue(pNextScreenPreviewMs))
         displayFullScreen(screenImage);
 
     //Reset idle mode if currently activated - capture has recovered, so the failure message
@@ -866,8 +866,19 @@ void AmbiLED::processManagerReadyProcess(ImageStrips strips)
     Q_ASSERT(!strips.isNull());
     PerfTimer timer(pGuiStripsStats);
 
+    //Add the frame time - here rather than in the (throttled) preview, so it reflects every processed frame
+    qint64 elapsed = pElapsedFrameTimer->elapsed();
+    while (pFrameAverageQueue.count() < 10) //Smooth the frame counter
+        pFrameAverageQueue.enqueue(elapsed);
+
+    pFrameAverageQueue.enqueue(elapsed);
+    pFrameAverageQueue.dequeue();
+    pElapsedFrameTimer->restart();
+
     //Display the strips on the UI
-    displayStrips(strips);
+    bool showPreview = previewDue(pNextStripsPreviewMs);
+    if (showPreview)
+        displayStrips(strips);
 
     //Update the LED representation of the strip
     pLeds->updateLED(strips);
@@ -891,7 +902,8 @@ void AmbiLED::processManagerReadyProcess(ImageStrips strips)
     }
 
     //Update the UI LED image at the bottom
-    displayLEDStrip(stripImage);
+    if (showPreview)
+        displayLEDStrip(stripImage);
 }
 
 //Processing failure
@@ -938,15 +950,24 @@ void AmbiLED::displayStrips(ImageStrips outLines)
     ui.bottomImage->setPixmap(bottom);
     ui.leftImage->setPixmap(left);
     ui.rightImage->setPixmap(right);
+}
 
-    //Add the frame time
-    qint64 elapsed = pElapsedFrameTimer->elapsed();
-    while (pFrameAverageQueue.count() < 10) //Smooth the frame counter
-        pFrameAverageQueue.enqueue(elapsed);
+//True (and the deadline advanced) if a preview redraw is due now. The deadline advances by whole
+//periods rather than restarting from "now", so frames arriving with jitter (e.g. every ~16.7 ms at
+//60 fps) still average PreviewFrameRate instead of rounding down to every 4th frame (15 Hz).
+bool AmbiLED::previewDue(qint64 &nextDueMs)
+{
+    if (!pPreviewClock.isValid())
+        pPreviewClock.start();
 
-    pFrameAverageQueue.enqueue(elapsed);
-    pFrameAverageQueue.dequeue();
-    pElapsedFrameTimer->restart();
+    qint64 now = pPreviewClock.elapsed();
+    if (now < nextDueMs)
+        return false;
+
+    const qint64 periodMs = 1000 / PreviewFrameRate;
+    //After a gap (e.g. idle, or the window was hidden), restart the cadence instead of catching up
+    nextDueMs = (now - nextDueMs >= periodMs) ? now + periodMs : nextDueMs + periodMs;
+    return true;
 }
 
 //Display full screen on label

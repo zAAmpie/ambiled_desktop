@@ -150,6 +150,10 @@ private:
     void displayFullScreen(QImage image);
     //Update the UI LED image at the bottom
     void displayLEDStrip(QImage image);
+    //Live previews only redraw at PreviewFrameRate - painting them every frame cost far more than
+    //the capture pipeline itself. True (and the deadline advanced) if a preview redraw is due now.
+    bool previewDue(qint64 &nextDueMs);
+    static constexpr int PreviewFrameRate = 20;
     //Update UI elements that require it
     void updateUIElements();
     //Show popup with device firmware and information
@@ -209,6 +213,9 @@ private:
     //Timers
     QElapsedTimer *pElapsedFrameTimer;
     QElapsedTimer *pElapsedSerialTimer;
+    QElapsedTimer pPreviewClock;
+    qint64 pNextScreenPreviewMs = 0;
+    qint64 pNextStripsPreviewMs = 0;
 
     //GUI-thread perf stats (see perfstats.h)
     PerfStats pGuiFrameStats{QStringLiteral("gui.frame")};
