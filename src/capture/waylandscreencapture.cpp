@@ -14,6 +14,7 @@
 #include <QDBusMetaType>
 #include <QDBusArgument>
 #include <QUuid>
+#include <QTimer>
 #include <QDebug>
 #include "imageutils.h"
 #include <unistd.h>
@@ -52,13 +53,26 @@ void ensurePipeWireInitialised()
 
 //Constructor
 WaylandScreenCapture::WaylandScreenCapture(QString restoreToken)
-    : QObject(), ScreenCapture(), pRestoreToken(std::move(restoreToken)), pPermanentlyFailed(false),
+    : QObject(), ScreenCapture(), pRestoreToken(std::move(restoreToken)), pPermanentlyFailed(false), pUserDenied(false),
       pLastError(QStringLiteral("WaylandScreenCapture: Waiting for screen-share permission")),
-      pLoop(nullptr), pContext(nullptr), pCore(nullptr), pStream(nullptr), pFormatNegotiated(false),
+      pRestartAttempts(0),
+      pLoop(nullptr), pContext(nullptr), pCore(nullptr), pStream(nullptr), pFormatNegotiated(false), pTearingDown(false),
       pHeldBuffer(nullptr), pHeldSequence(0), pFrameSequence(0),
       pPipeWireFrameStats(QStringLiteral("wayland.pw-frame"))
 {
     ensurePortalStreamTypeRegistered();
+
+    pRestartTimer = new QTimer(this);
+    pRestartTimer->setSingleShot(true);
+    connect(pRestartTimer, &QTimer::timeout, this, &WaylandScreenCapture::restart);
+
+    //The PipeWire stream doesn't reliably survive suspend - sometimes it errors (handled in
+    //onStreamStateChanged), sometimes it just silently stops delivering frames - so always reconnect on resume
+    QDBusConnection::systemBus().connect(
+        QStringLiteral("org.freedesktop.login1"), QStringLiteral("/org/freedesktop/login1"),
+        QStringLiteral("org.freedesktop.login1.Manager"), QStringLiteral("PrepareForSleep"),
+        this, SLOT(onPrepareForSleep(bool)));
+
     startNegotiation();
 }
 
@@ -66,24 +80,16 @@ WaylandScreenCapture::WaylandScreenCapture(QString restoreToken)
 WaylandScreenCapture::~WaylandScreenCapture()
 {
     teardownPipeWire();
-
-    //Politely close the portal session rather than leaving it dangling until the bus connection drops
-    if (!pSessionHandle.isEmpty())
-    {
-        QDBusMessage message = QDBusMessage::createMethodCall(
-            QStringLiteral("org.freedesktop.portal.Desktop"), pSessionHandle,
-            QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Close"));
-        QDBusConnection::sessionBus().asyncCall(message);
-    }
+    closeSession();
 }
 
 //Main function to start capturing the screen - returns the latest frame received from PipeWire
 CaptureValue WaylandScreenCapture::capture()
 {
+    QMutexLocker locker(&pFrameMutex);
     if (!pFormatNegotiated)
         return CaptureValue(pLastError, pFrame);
 
-    QMutexLocker locker(&pFrameMutex);
     //Nothing new since the last capture - hand back the same (implicitly shared) image without copying
     if (!pHeldBuffer || pHeldSequence == pFrameSequence)
         return CaptureValue(pFrame);
@@ -100,6 +106,7 @@ CaptureValue WaylandScreenCapture::capture()
     pFrame = ImageUtils::downsample32(source, static_cast<int>(pVideoInfo.size.width), static_cast<int>(pVideoInfo.size.height),
                                       data.chunk->stride, format, DownsampleFactor);
     pFrameSequence = pHeldSequence;
+    pRestartAttempts = 0; //Frames are flowing again - the next breakage starts from the shortest backoff
     return CaptureValue(pFrame);
 }
 
@@ -122,14 +129,73 @@ QString WaylandScreenCapture::subscribeToRequest(const char *slot)
     return handleToken;
 }
 
-//Give up negotiating (permission denied / portal unavailable) - do not auto-retry; the user can
-//switch capture modes away and back to force a fresh attempt
-void WaylandScreenCapture::failPermanently(const QString &reason)
+//Negotiation/setup failed - see header for when this retries and when it gives up
+void WaylandScreenCapture::fail(const QString &reason)
 {
+    //While reconnecting (e.g. just after resume, when the portal or PipeWire may still be coming back
+    //up), keep trying - unless the user explicitly said no, which must never re-prompt in a loop
+    if (pRestartAttempts > 0 && !pUserDenied)
+    {
+        teardownPipeWire();
+        scheduleRestart(reason);
+        return;
+    }
+
+    //Otherwise give up; the user can switch capture modes away and back to force a fresh attempt
     qWarning() << reason;
     pPermanentlyFailed = true;
-    pLastError = reason;
+    setLastError(reason);
     teardownPipeWire();
+}
+
+//Reconnect after a backoff delay - no-op if one is already pending or we've given up
+void WaylandScreenCapture::scheduleRestart(const QString &reason)
+{
+    if (pPermanentlyFailed || pRestartTimer->isActive())
+        return;
+
+    static const int backoffMs[] = {2000, 5000, 10000, 30000};
+    int attempt = pRestartAttempts++;
+    int delayMs = backoffMs[qMin(attempt, static_cast<int>(std::size(backoffMs)) - 1)];
+
+    qWarning().noquote() << reason << QStringLiteral("- reconnecting in %1 s").arg(delayMs / 1000);
+    pFormatNegotiated = false;
+    setLastError(QStringLiteral("%1 - reconnecting").arg(reason));
+    pRestartTimer->start(delayMs);
+}
+
+//Tear everything down and negotiate a fresh portal session + stream (silently, via the restore_token)
+void WaylandScreenCapture::restart()
+{
+    teardownPipeWire();
+    closeSession();
+    startNegotiation();
+}
+
+//Close the portal session (if any), ignoring the Closed signal that may follow
+void WaylandScreenCapture::closeSession()
+{
+    if (pSessionHandle.isEmpty())
+        return;
+
+    QDBusConnection::sessionBus().disconnect(
+        QStringLiteral("org.freedesktop.portal.Desktop"), pSessionHandle,
+        QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Closed"),
+        this, SLOT(onSessionClosed()));
+
+    //Politely close the portal session rather than leaving it dangling until the bus connection drops
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.portal.Desktop"), pSessionHandle,
+        QStringLiteral("org.freedesktop.portal.Session"), QStringLiteral("Close"));
+    QDBusConnection::sessionBus().asyncCall(message);
+    pSessionHandle.clear();
+}
+
+//pLastError is read from the capture thread
+void WaylandScreenCapture::setLastError(const QString &error)
+{
+    QMutexLocker locker(&pFrameMutex);
+    pLastError = error;
 }
 
 //Kick off the CreateSession -> SelectSources -> Start -> OpenPipeWireRemote sequence
@@ -151,7 +217,7 @@ void WaylandScreenCapture::startNegotiation()
     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *callWatcher)
     {
         if (callWatcher->isError())
-            failPermanently(QStringLiteral("WaylandScreenCapture: xdg-desktop-portal ScreenCast service unavailable (%1)").arg(callWatcher->error().message()));
+            fail(QStringLiteral("WaylandScreenCapture: xdg-desktop-portal ScreenCast service unavailable (%1)").arg(callWatcher->error().message()));
         callWatcher->deleteLater();
     });
 }
@@ -163,14 +229,14 @@ void WaylandScreenCapture::onCreateSessionResponse(uint response, QVariantMap re
         return;
     if (response != 0)
     {
-        failPermanently(QStringLiteral("WaylandScreenCapture: Failed to create portal session (response %1)").arg(response));
+        fail(QStringLiteral("WaylandScreenCapture: Failed to create portal session (response %1)").arg(response));
         return;
     }
 
     pSessionHandle = results.value(QStringLiteral("session_handle")).toString();
     if (pSessionHandle.isEmpty())
     {
-        failPermanently(QStringLiteral("WaylandScreenCapture: Portal did not return a session handle"));
+        fail(QStringLiteral("WaylandScreenCapture: Portal did not return a session handle"));
         return;
     }
 
@@ -199,7 +265,7 @@ void WaylandScreenCapture::onCreateSessionResponse(uint response, QVariantMap re
     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *callWatcher)
     {
         if (callWatcher->isError())
-            failPermanently(QStringLiteral("WaylandScreenCapture: SelectSources call failed (%1)").arg(callWatcher->error().message()));
+            fail(QStringLiteral("WaylandScreenCapture: SelectSources call failed (%1)").arg(callWatcher->error().message()));
         callWatcher->deleteLater();
     });
 }
@@ -211,7 +277,7 @@ void WaylandScreenCapture::onSelectSourcesResponse(uint response, QVariantMap re
         return;
     if (response != 0)
     {
-        failPermanently(QStringLiteral("WaylandScreenCapture: Failed to select capture source (response %1)").arg(response));
+        fail(QStringLiteral("WaylandScreenCapture: Failed to select capture source (response %1)").arg(response));
         return;
     }
 
@@ -238,7 +304,7 @@ void WaylandScreenCapture::onSelectSourcesResponse(uint response, QVariantMap re
     connect(watcher, &QDBusPendingCallWatcher::finished, this, [this](QDBusPendingCallWatcher *callWatcher)
     {
         if (callWatcher->isError())
-            failPermanently(QStringLiteral("WaylandScreenCapture: Start call failed (%1)").arg(callWatcher->error().message()));
+            fail(QStringLiteral("WaylandScreenCapture: Start call failed (%1)").arg(callWatcher->error().message()));
         callWatcher->deleteLater();
     });
 }
@@ -250,7 +316,8 @@ void WaylandScreenCapture::onStartResponse(uint response, QVariantMap results)
         return;
     if (response != 0)
     {
-        failPermanently(QStringLiteral("WaylandScreenCapture: Screen share permission denied"));
+        pUserDenied = true;
+        fail(QStringLiteral("WaylandScreenCapture: Screen share permission denied"));
         return;
     }
 
@@ -272,7 +339,7 @@ void WaylandScreenCapture::onStartResponse(uint response, QVariantMap results)
 
     if (nodeId == 0)
     {
-        failPermanently(QStringLiteral("WaylandScreenCapture: Portal did not return a PipeWire stream"));
+        fail(QStringLiteral("WaylandScreenCapture: Portal did not return a PipeWire stream"));
         return;
     }
 
@@ -287,7 +354,7 @@ void WaylandScreenCapture::onStartResponse(uint response, QVariantMap results)
         QDBusPendingReply<QDBusUnixFileDescriptor> reply = *callWatcher;
         if (callWatcher->isError())
         {
-            failPermanently(QStringLiteral("WaylandScreenCapture: OpenPipeWireRemote call failed (%1)").arg(callWatcher->error().message()));
+            fail(QStringLiteral("WaylandScreenCapture: OpenPipeWireRemote call failed (%1)").arg(callWatcher->error().message()));
         }
         else
         {
@@ -295,7 +362,7 @@ void WaylandScreenCapture::onStartResponse(uint response, QVariantMap results)
             //copy once this expression ends, so we need our own independent copy to hand to PipeWire
             int fd = ::dup(reply.value().fileDescriptor());
             if (fd < 0)
-                failPermanently(QStringLiteral("WaylandScreenCapture: Failed to duplicate PipeWire remote fd"));
+                fail(QStringLiteral("WaylandScreenCapture: Failed to duplicate PipeWire remote fd"));
             else
                 setupPipeWire(fd, nodeId);
         }
@@ -303,10 +370,18 @@ void WaylandScreenCapture::onStartResponse(uint response, QVariantMap results)
     });
 }
 
-//Compositor or user revoked sharing mid-session
+//Compositor closed the session mid-stream (e.g. around suspend, or a compositor restart) - reconnect
 void WaylandScreenCapture::onSessionClosed()
 {
-    failPermanently(QStringLiteral("WaylandScreenCapture: Screen share session was closed"));
+    scheduleRestart(QStringLiteral("WaylandScreenCapture: Screen share session was closed"));
+}
+
+//Reconnect after resume, since the stream may not survive suspend. Only if a stream exists - if a
+//negotiation is still in flight, restarting now would run a second one alongside it.
+void WaylandScreenCapture::onPrepareForSleep(bool sleeping)
+{
+    if (!sleeping && pStream)
+        scheduleRestart(QStringLiteral("WaylandScreenCapture: Resumed from suspend"));
 }
 
 //Set up the PipeWire stream once we have a pre-authenticated socket fd and a node id to connect to.
@@ -320,7 +395,7 @@ void WaylandScreenCapture::setupPipeWire(int pipewireFd, quint32 nodeId)
     if (!pLoop)
     {
         ::close(pipewireFd);
-        failPermanently(QStringLiteral("WaylandScreenCapture: Failed to create PipeWire loop"));
+        fail(QStringLiteral("WaylandScreenCapture: Failed to create PipeWire loop"));
         return;
     }
 
@@ -328,14 +403,14 @@ void WaylandScreenCapture::setupPipeWire(int pipewireFd, quint32 nodeId)
     if (!pContext)
     {
         ::close(pipewireFd);
-        failPermanently(QStringLiteral("WaylandScreenCapture: Failed to create PipeWire context"));
+        fail(QStringLiteral("WaylandScreenCapture: Failed to create PipeWire context"));
         return;
     }
 
     if (pw_thread_loop_start(pLoop) < 0)
     {
         ::close(pipewireFd);
-        failPermanently(QStringLiteral("WaylandScreenCapture: Failed to start PipeWire loop thread"));
+        fail(QStringLiteral("WaylandScreenCapture: Failed to start PipeWire loop thread"));
         return;
     }
 
@@ -345,7 +420,7 @@ void WaylandScreenCapture::setupPipeWire(int pipewireFd, quint32 nodeId)
     if (!pCore)
     {
         pw_thread_loop_unlock(pLoop);
-        failPermanently(QStringLiteral("WaylandScreenCapture: Failed to connect to PipeWire"));
+        fail(QStringLiteral("WaylandScreenCapture: Failed to connect to PipeWire"));
         return;
     }
 
@@ -358,7 +433,7 @@ void WaylandScreenCapture::setupPipeWire(int pipewireFd, quint32 nodeId)
     if (!pStream)
     {
         pw_thread_loop_unlock(pLoop);
-        failPermanently(QStringLiteral("WaylandScreenCapture: Failed to create PipeWire stream"));
+        fail(QStringLiteral("WaylandScreenCapture: Failed to create PipeWire stream"));
         return;
     }
 
@@ -407,7 +482,7 @@ void WaylandScreenCapture::setupPipeWire(int pipewireFd, quint32 nodeId)
 
     if (result < 0)
     {
-        failPermanently(QStringLiteral("WaylandScreenCapture: Failed to connect PipeWire stream"));
+        fail(QStringLiteral("WaylandScreenCapture: Failed to connect PipeWire stream"));
         return;
     }
 }
@@ -416,6 +491,7 @@ void WaylandScreenCapture::setupPipeWire(int pipewireFd, quint32 nodeId)
 void WaylandScreenCapture::teardownPipeWire()
 {
     pFormatNegotiated = false;
+    pTearingDown = true;
 
     if (pLoop)
         pw_thread_loop_lock(pLoop);
@@ -450,6 +526,8 @@ void WaylandScreenCapture::teardownPipeWire()
         pw_thread_loop_destroy(pLoop);
         pLoop = nullptr;
     }
+
+    pTearingDown = false;
 }
 
 //Called on the PipeWire thread when the compositor picks a concrete format from our EnumFormat choice
@@ -531,12 +609,16 @@ void WaylandScreenCapture::onStreamStateChanged(void *data, enum pw_stream_state
 {
     Q_UNUSED(oldState)
     auto *self = static_cast<WaylandScreenCapture *>(data);
-    if (newState == PW_STREAM_STATE_ERROR || newState == PW_STREAM_STATE_UNCONNECTED)
+    if ((newState == PW_STREAM_STATE_ERROR || newState == PW_STREAM_STATE_UNCONNECTED) && !self->pTearingDown)
     {
         self->pFormatNegotiated = false;
-        self->pLastError = error
+        QString reason = error
             ? QStringLiteral("WaylandScreenCapture: PipeWire stream error (%1)").arg(QString::fromUtf8(error))
             : QStringLiteral("WaylandScreenCapture: PipeWire stream disconnected");
+
+        //Reconnecting tears down this PipeWire thread, so it has to happen on the object's own thread.
+        //Dropped automatically if the object is destroyed before it runs.
+        QMetaObject::invokeMethod(self, [self, reason] {self->scheduleRestart(reason);}, Qt::QueuedConnection);
     }
 }
 
