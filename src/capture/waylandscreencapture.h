@@ -56,7 +56,8 @@ private slots:
     void onStartResponse(uint response, QVariantMap results);
     //Portal Session.Closed handler - compositor/user revoked sharing mid-session
     void onSessionClosed();
-    //logind Manager.PrepareForSleep handler - reconnect after resume, since the stream may not survive suspend
+    //logind Manager.PrepareForSleep handler - reconnect after resume, since the stream may not survive suspend.
+    //Also retries once if we had given up for any reason other than the user denying permission.
     void onPrepareForSleep(bool sleeping);
 
 private:
@@ -64,10 +65,15 @@ private:
     void startNegotiation();
     //The CreateSession -> SelectSources -> Start -> OpenPipeWireRemote sequence
     void createSession();
-    //Subscribe to a Request object's Response signal before issuing the call that creates it
+    //Subscribe to a Request object's Response signal before issuing the call that creates it.
+    //Drops any previous pending request first - only one is ever in flight.
     QString subscribeToRequest(const char *slot);
+    //Unsubscribe from (and close) the pending request, so a late Response to an abandoned negotiation
+    //(e.g. the "ended" response 2 a Start gets when its session is closed) can't drive the next one
+    void dropPendingRequest();
     //Negotiation/setup failed. While reconnecting this retries with backoff; otherwise (first attempt,
-    //e.g. portal unavailable) or if the user denied permission, gives up until the capture mode is re-selected
+    //e.g. portal unavailable) or if the user denied permission, gives up until the capture mode is
+    //re-selected (or, unless the user denied it, the system resumes from suspend)
     void fail(const QString &reason);
     //Reconnect after a delay that backs off with consecutive attempts (reset once frames flow again)
     void scheduleRestart(const QString &reason);
@@ -89,6 +95,8 @@ private:
     //D-Bus session state
     QString pSessionHandle;
     QString pRestoreToken;
+    QString pPendingRequestPath;     //Request object we're awaiting a Response from (empty if none)
+    const char *pPendingRequestSlot; //...and the slot it's connected to
     bool pPermanentlyFailed;
     bool pUserDenied;
     QString pLastError; //Guarded by pFrameMutex

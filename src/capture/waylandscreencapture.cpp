@@ -53,7 +53,8 @@ void ensurePipeWireInitialised()
 
 //Constructor
 WaylandScreenCapture::WaylandScreenCapture(QString restoreToken)
-    : QObject(), ScreenCapture(), pRestoreToken(std::move(restoreToken)), pPermanentlyFailed(false), pUserDenied(false),
+    : QObject(), ScreenCapture(), pRestoreToken(std::move(restoreToken)), pPendingRequestSlot(nullptr),
+      pPermanentlyFailed(false), pUserDenied(false),
       pLastError(QStringLiteral("WaylandScreenCapture: Waiting for screen-share permission")),
       pRestartAttempts(0),
       pLoop(nullptr), pContext(nullptr), pCore(nullptr), pStream(nullptr), pFormatNegotiated(false), pTearingDown(false),
@@ -80,6 +81,7 @@ WaylandScreenCapture::WaylandScreenCapture(QString restoreToken)
 WaylandScreenCapture::~WaylandScreenCapture()
 {
     teardownPipeWire();
+    dropPendingRequest();
     closeSession();
 }
 
@@ -121,6 +123,8 @@ QRect WaylandScreenCapture::outputGeometry() const
 //portal spec's escaping rule: strip the leading ':' from our unique bus name and replace '.' with '_'
 QString WaylandScreenCapture::subscribeToRequest(const char *slot)
 {
+    dropPendingRequest();
+
     QString handleToken = QStringLiteral("ambiled_%1").arg(QUuid::createUuid().toString(QUuid::Id128));
 
     QString sender = QDBusConnection::sessionBus().baseService();
@@ -132,8 +136,31 @@ QString WaylandScreenCapture::subscribeToRequest(const char *slot)
         QStringLiteral("org.freedesktop.portal.Desktop"), requestPath,
         QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
         this, slot);
+    pPendingRequestPath = requestPath;
+    pPendingRequestSlot = slot;
 
     return handleToken;
+}
+
+//Unsubscribe from (and close) the pending request - see header
+void WaylandScreenCapture::dropPendingRequest()
+{
+    if (pPendingRequestPath.isEmpty())
+        return;
+
+    QDBusConnection::sessionBus().disconnect(
+        QStringLiteral("org.freedesktop.portal.Desktop"), pPendingRequestPath,
+        QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Response"),
+        this, pPendingRequestSlot);
+
+    //Harmless if it already responded (the object is gone by then); if not, this dismisses any dialog it popped
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QStringLiteral("org.freedesktop.portal.Desktop"), pPendingRequestPath,
+        QStringLiteral("org.freedesktop.portal.Request"), QStringLiteral("Close"));
+    QDBusConnection::sessionBus().asyncCall(message);
+
+    pPendingRequestPath.clear();
+    pPendingRequestSlot = nullptr;
 }
 
 //Negotiation/setup failed - see header for when this retries and when it gives up
@@ -175,6 +202,7 @@ void WaylandScreenCapture::scheduleRestart(const QString &reason)
 void WaylandScreenCapture::restart()
 {
     teardownPipeWire();
+    dropPendingRequest();
     closeSession();
     startNegotiation();
 }
@@ -344,15 +372,22 @@ void WaylandScreenCapture::onSelectSourcesResponse(uint response, QVariantMap re
     });
 }
 
-//Start's Request.Response arrived - response!=0 here means the user denied/cancelled the share dialog
+//Start's Request.Response arrived. Per the portal spec 1 means the user cancelled the share dialog,
+//while 2 means it ended some other way - e.g. the compositor couldn't stream yet just after resume,
+//or the session was closed under it. Only the former is a real denial; the latter is worth retrying.
 void WaylandScreenCapture::onStartResponse(uint response, QVariantMap results)
 {
     if (pPermanentlyFailed)
         return;
-    if (response != 0)
+    if (response == 1)
     {
         pUserDenied = true;
         fail(QStringLiteral("WaylandScreenCapture: Screen share permission denied"));
+        return;
+    }
+    if (response != 0)
+    {
+        fail(QStringLiteral("WaylandScreenCapture: Screen share could not be started (response %1)").arg(response));
         return;
     }
 
@@ -435,10 +470,19 @@ void WaylandScreenCapture::onSessionClosed()
 }
 
 //Reconnect after resume, since the stream may not survive suspend. Only if a stream exists - if a
-//negotiation is still in flight, restarting now would run a second one alongside it.
+//negotiation is still in flight, restarting now would run a second one alongside it. If we had given
+//up (but not because the user said no), resume is also a good moment to try again: whatever was
+//broken may have recovered, and if the restore_token no longer works the user is there to answer the dialog.
 void WaylandScreenCapture::onPrepareForSleep(bool sleeping)
 {
-    if (!sleeping && pStream)
+    if (sleeping)
+        return;
+    if (pPermanentlyFailed && !pUserDenied)
+    {
+        pPermanentlyFailed = false;
+        scheduleRestart(QStringLiteral("WaylandScreenCapture: Resumed from suspend after giving up"));
+    }
+    else if (pStream)
         scheduleRestart(QStringLiteral("WaylandScreenCapture: Resumed from suspend"));
 }
 
