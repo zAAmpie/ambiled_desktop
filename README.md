@@ -29,7 +29,7 @@ updated colours to the LED hardware.
 - System tray icon with live connected/disconnected status, a visualise mode for previewing the
   captured and processed image, and persisted settings between runs
 - A Test tab with test patterns (solid colours, a spinning colour wheel, alternating colours,
-  edge/block chases and a letterbox) shown fullscreen on the captured display or fed straight
+  edge/block chases, a colour per LED segment and a letterbox) shown fullscreen on the captured display or fed straight
   into processing - see [Test patterns](#test-patterns)
 
 ## Architecture
@@ -192,6 +192,7 @@ it is saved, so a test never resumes at the next start.
 | Alternating colours (two colours, switch interval) | the low-pass filter's response to hard cuts |
 | Edge chase (a bar travelling clockwise from the top-left) | LED order and strip direction |
 | Block chase (one cell of a 10x10 grid stepping round the edge) | LED layout, with each corner lit exactly once |
+| LED segments (top red, right green, bottom right blue, bottom left yellow, left magenta, bottom gap black) | LED counts on the Display tab: with the right counts every colour change sits on a corner (or the gap's edges); a colour spilling round a corner means that segment's count is off |
 | Letterbox (black bars of adjustable height) | black bar removal, including bars taller than its scan depth |
 
 The chase patterns have black backgrounds, so turn black bar removal off while using them -
@@ -233,7 +234,7 @@ Currently covered:
 - **[tests/testpattern/](tests/testpattern/)** — `TestPattern`: defaults come from the parameter
   specs, and each pattern renders what it should over time (exact solid colours, the wheel
   rotating, alternation on the interval, the edge chase travelling and wrapping, the block chase
-  visiting each cell once, letterbox bar heights).
+  visiting each cell once, the LED segments' colours and bottom split, letterbox bar heights).
 - **[tests/capture/](tests/capture/)** (Unix only) — `X11ScreenCapture` against whatever X
   server `$DISPLAY` points at (XWayland on a Wayland desktop; it only reads the root window):
   produces correctly downsampled frames, fails cleanly without a display, and can be destroyed

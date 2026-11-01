@@ -41,7 +41,7 @@ ParameterSpec intSpec(const QString &key, const QString &label, int minimum, int
 }
 
 //Constructor - starts from the default value of every parameter
-TestPattern::TestPattern(Type type) : pType(type)
+TestPattern::TestPattern(Type type) : pType(type), pBottomLeft(1), pBottomGap(0), pBottomRight(1)
 {
     for (const ParameterSpec &spec : parameterSpecs(type))
         pParameters.insert(spec.key, spec.defaultValue);
@@ -57,6 +57,7 @@ QString TestPattern::name(Type type)
     case Alternating: return QStringLiteral("Alternating colours");
     case EdgeChase: return QStringLiteral("Edge chase");
     case BlockChase: return QStringLiteral("Block chase");
+    case Segments: return QStringLiteral("LED segments");
     case Letterbox: return QStringLiteral("Letterbox");
     }
     return QString();
@@ -68,6 +69,7 @@ bool TestPattern::isAnimated() const
     switch (pType)
     {
     case SolidColour:
+    case Segments:
     case Letterbox: return false;
     case ColourWheel: return intParameter(QStringLiteral("rpm")) != 0;
     case Alternating:
@@ -98,6 +100,8 @@ QList<ParameterSpec> TestPattern::parameterSpecs(Type type)
     case BlockChase:
         return {colourSpec(QStringLiteral("colour"), QStringLiteral("Colour"), White),
                 intSpec(QStringLiteral("lapSeconds"), QStringLiteral("Time per lap"), 1, 60, 1, 10, QStringLiteral(" s"))};
+    case Segments:
+        return {};
     case Letterbox:
         //12% a side is 2.39:1 film on a 16:9 screen. Going past the black bar process's scan depth
         //(25% by default) shows what happens when bars are too tall to be removed.
@@ -113,6 +117,14 @@ void TestPattern::setParameters(const QVariantMap &parameters)
     for (auto it = parameters.constBegin(); it != parameters.constEnd(); ++it)
         if (pParameters.contains(it.key()))
             pParameters.insert(it.key(), it.value());
+}
+
+//Bottom LED layout for Segments - see header
+void TestPattern::setBottomLayout(int left, int gap, int right)
+{
+    pBottomLeft = qMax(0, left);
+    pBottomGap = qMax(0, gap);
+    pBottomRight = qMax(0, right);
 }
 
 //Draws the pattern over the whole of `area`, as it looks `elapsedMs` after it started
@@ -154,6 +166,9 @@ void TestPattern::render(QPainter &painter, const QRect &area, qint64 elapsedMs)
         break;
     case BlockChase:
         renderBlockChase(painter, area, elapsedMs);
+        break;
+    case Segments:
+        renderSegments(painter, area);
         break;
     case Letterbox:
     {
@@ -241,6 +256,49 @@ void TestPattern::renderBlockChase(QPainter &painter, const QRect &area, qint64 
     const qreal cellHeight = static_cast<qreal>(area.height()) / n;
     painter.fillRect(QRectF(column * cellWidth, row * cellHeight, cellWidth, cellHeight).translated(area.topLeft()),
                      colourParameter(QStringLiteral("colour")));
+}
+
+//Each LED segment of the main tab's layout in its own colour - top red, right green, bottom right
+//blue, bottom left yellow, left magenta, bottom gap black - so a wrong count shows as a colour
+//spilling round a corner (or past the gap). The sides are triangles meeting at the centre, which
+//within the sampled edge strips is exactly a mitred frame: each corner is split along its diagonal,
+//so with the right counts every colour change sits on a physical corner.
+void TestPattern::renderSegments(QPainter &painter, const QRect &area) const
+{
+    painter.fillRect(area, Qt::black);
+
+    const QRectF r(area);
+    const QPointF centre = r.center();
+    auto fillTriangle = [&](QPointF a, QPointF b, const QColor &colour)
+    {
+        painter.setBrush(colour);
+        painter.drawPolygon(QPolygonF({a, b, centre}));
+    };
+
+    painter.save();
+    painter.setPen(Qt::NoPen);
+    fillTriangle(r.topLeft(), r.topRight(), QColor(255, 0, 0));
+    fillTriangle(r.topRight(), r.bottomRight(), QColor(0, 255, 0));
+    fillTriangle(r.bottomLeft(), r.topLeft(), QColor(255, 0, 255));
+
+    //Bottom: split at the same fractions of the width as the transforms split the bottom strip's LEDs
+    int bottomCount = pBottomLeft + pBottomGap + pBottomRight;
+    if (bottomCount > 0)
+    {
+        qreal gapStart = r.left() + r.width() * pBottomLeft / bottomCount;
+        qreal gapEnd = r.left() + r.width() * (pBottomLeft + pBottomGap) / bottomCount;
+
+        painter.save();
+        painter.setClipRect(QRectF(r.left(), r.top(), gapStart - r.left(), r.height()), Qt::IntersectClip);
+        fillTriangle(r.bottomRight(), r.bottomLeft(), QColor(255, 255, 0));
+        painter.restore();
+
+        painter.save();
+        painter.setClipRect(QRectF(gapEnd, r.top(), r.right() - gapEnd, r.height()), Qt::IntersectClip);
+        fillTriangle(r.bottomRight(), r.bottomLeft(), QColor(0, 0, 255));
+        painter.restore();
+    }
+    painter.restore();
 }
 
 QColor TestPattern::colourParameter(const QString &key) const

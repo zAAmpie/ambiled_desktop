@@ -522,8 +522,8 @@ void AmbiLED::uiTestOutputChanged()
     updateTestPatternWindow();
 }
 
-//Test tab: the chosen pattern or any of its parameters changed - applied live (the pattern's
-//clock keeps running, so tweaking e.g. the wheel's speed doesn't restart it)
+//Test tab: the chosen pattern or any of its parameters (or the LED layout) changed - applied live
+//(the pattern's clock keeps running, so tweaking e.g. the wheel's speed doesn't restart it)
 void AmbiLED::uiTestPatternChanged()
 {
     TestPattern pattern = currentTestPattern();
@@ -643,6 +643,9 @@ void AmbiLED::uiLedPositionsChanged()
     p.bg = ui.gapLEDCount->value();
 
     pLeds->setPositions(p);
+
+    //The LED segments test pattern splits the bottom edge where the LEDs do
+    uiTestPatternChanged();
 }
 
 //User has selected a different serial port
@@ -901,6 +904,8 @@ TestPattern AmbiLED::currentTestPattern() const
     int index = pTestPatternComboBox->currentIndex();
     TestPattern pattern(static_cast<TestPattern::Type>(pTestPatternComboBox->itemData(index).toInt()));
     pattern.setParameters(pTestPatternForms.at(index)->values());
+    LEDPositions positions = pLeds->getPositions();
+    pattern.setBottomLayout(positions.bl, positions.bg, positions.br);
     return pattern;
 }
 

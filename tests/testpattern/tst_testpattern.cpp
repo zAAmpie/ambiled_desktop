@@ -29,6 +29,7 @@ private slots:
     void edgeChase_travelsClockwiseFromTopLeft();
     void edgeChase_wrapsPastTopLeftCorner();
     void blockChase_walksSingleCellsClockwise();
+    void segments_colourEachSideAndSplitBottomByLayout();
     void letterbox_drawsBarsOfConfiguredHeight();
 };
 
@@ -176,6 +177,27 @@ void TstTestPattern::blockChase_walksSingleCellsClockwise()
     QCOMPARE(last.pixel(10, 15), lit);
     QCOMPARE(last.pixel(10, 5), dark);
     QCOMPARE(pattern.render(QSize(200, 100), 10000).pixel(10, 5), lit);
+}
+
+void TstTestPattern::segments_colourEachSideAndSplitBottomByLayout()
+{
+    TestPattern pattern(TestPattern::Segments);
+    QVERIFY(!pattern.isAnimated());
+
+    //Bottom: 3 left, 2 gap, 5 right LEDs -> x 0-29 left segment, 30-49 gap, 50-99 right segment
+    pattern.setBottomLayout(3, 2, 5);
+    QImage image = pattern.render(QSize(100, 60), 0);
+
+    QCOMPARE(image.pixel(50, 2), qRgb(255, 0, 0));   //Top
+    QCOMPARE(image.pixel(97, 30), qRgb(0, 255, 0));  //Right
+    QCOMPARE(image.pixel(2, 30), qRgb(255, 0, 255)); //Left
+    QCOMPARE(image.pixel(15, 57), qRgb(255, 255, 0)); //Bottom left
+    QCOMPARE(image.pixel(40, 57), qRgb(0, 0, 0));     //Bottom gap
+    QCOMPARE(image.pixel(75, 57), qRgb(0, 0, 255));   //Bottom right
+
+    //Corners are split along their diagonal: just above it belongs to the top, just below to the left
+    QCOMPARE(image.pixel(5, 1), qRgb(255, 0, 0));
+    QCOMPARE(image.pixel(1, 5), qRgb(255, 0, 255));
 }
 
 void TstTestPattern::letterbox_drawsBarsOfConfiguredHeight()
