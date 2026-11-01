@@ -131,6 +131,13 @@ void ScreenManager::setEnabled(bool state)
     if (state && !pFrameTimer->isActive())
         startFrameTimer();
 
+    //Give the backend a chance to recover a broken source now the user explicitly wants capture
+    if (state)
+    {
+        QMutexLocker locker(&pMutex);
+        pScreen->reactivate();
+    }
+
     //If we want to disable it and it is running, stop it
     if (!state && pFrameTimer->isActive())
         pFrameTimer->stop();

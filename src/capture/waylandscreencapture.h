@@ -45,6 +45,10 @@ public:
     //The shared monitor, as reported by the portal (empty if it didn't say)
     QRect outputGeometry() const override;
 
+    //Capture was re-enabled by the user: if we're not streaming, forget any earlier failure or
+    //denial and negotiate again right away (silently via the restore_token, else via the share dialog)
+    void reactivate() override;
+
 signals:
     //The portal issued a new (or rotated) restore_token - persist it so future sessions skip the share dialog
     void restoreTokenUpdated(QString token);
@@ -77,8 +81,12 @@ private:
     void fail(const QString &reason);
     //Reconnect after a delay that backs off with consecutive attempts (reset once frames flow again)
     void scheduleRestart(const QString &reason);
-    //Tear everything down and negotiate a fresh portal session + stream
-    void restart();
+    //Tear everything down and negotiate a fresh portal session + stream. With waitForOutput, first
+    //wait (with backoff) for the previously shared monitor to be back - e.g. after resume it can take
+    //a while to reappear, and reconnecting before then gets a share dialog that doesn't even list it.
+    void restart(bool waitForOutput = true);
+    //Whether the monitor we were sharing (per the portal) is currently present on the desktop
+    bool sharedOutputPresent() const;
     //Close the portal session (if any), ignoring the Closed signal that may follow
     void closeSession();
     //pLastError is read from the capture thread - always set it through here
@@ -104,6 +112,9 @@ private:
     //Reconnection
     QTimer *pRestartTimer;
     std::atomic<int> pRestartAttempts; //Consecutive attempts without a frame - reset by capture()
+    int pOutputWaitAttempts;           //Consecutive restart() deferrals waiting for the shared monitor
+    bool pOutputSettling;              //Monitor is back after a wait - giving the compositor a moment before using it
+    int pSharedScreenCount;            //Number of screens when the stream last started
 
     //PipeWire state
     pw_thread_loop *pLoop;

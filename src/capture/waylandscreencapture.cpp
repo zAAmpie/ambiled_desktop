@@ -15,6 +15,8 @@
 #include <QDBusArgument>
 #include <QUuid>
 #include <QTimer>
+#include <QGuiApplication>
+#include <QScreen>
 #include <QDebug>
 #include "imageutils.h"
 #include <unistd.h>
@@ -56,7 +58,7 @@ WaylandScreenCapture::WaylandScreenCapture(QString restoreToken)
     : QObject(), ScreenCapture(), pRestoreToken(std::move(restoreToken)), pPendingRequestSlot(nullptr),
       pPermanentlyFailed(false), pUserDenied(false),
       pLastError(QStringLiteral("WaylandScreenCapture: Waiting for screen-share permission")),
-      pRestartAttempts(0),
+      pRestartAttempts(0), pOutputWaitAttempts(0), pOutputSettling(false), pSharedScreenCount(0),
       pLoop(nullptr), pContext(nullptr), pCore(nullptr), pStream(nullptr), pFormatNegotiated(false), pTearingDown(false),
       pHeldBuffer(nullptr), pHeldSequence(0), pFrameSequence(0),
       pPipeWireFrameStats(QStringLiteral("wayland.pw-frame"))
@@ -65,7 +67,7 @@ WaylandScreenCapture::WaylandScreenCapture(QString restoreToken)
 
     pRestartTimer = new QTimer(this);
     pRestartTimer->setSingleShot(true);
-    connect(pRestartTimer, &QTimer::timeout, this, &WaylandScreenCapture::restart);
+    connect(pRestartTimer, &QTimer::timeout, this, [this] {restart();});
 
     //The PipeWire stream doesn't reliably survive suspend - sometimes it errors (handled in
     //onStreamStateChanged), sometimes it just silently stops delivering frames - so always reconnect on resume
@@ -199,12 +201,78 @@ void WaylandScreenCapture::scheduleRestart(const QString &reason)
 }
 
 //Tear everything down and negotiate a fresh portal session + stream (silently, via the restore_token)
-void WaylandScreenCapture::restart()
+void WaylandScreenCapture::restart(bool waitForOutput)
 {
+    if (waitForOutput)
+    {
+        //Poll for the shared monitor with backoff, giving up on it after about a minute (it may have
+        //been unplugged for good - then the share dialog is the right thing to show anyway)
+        static const int waitMs[] = {1000, 2000, 3000, 5000};
+        static const int maxWaitAttempts = 15;
+        static const int settleMs = 2000;
+
+        if (!sharedOutputPresent() && pOutputWaitAttempts < maxWaitAttempts)
+        {
+            int delayMs = waitMs[qMin(pOutputWaitAttempts++, static_cast<int>(std::size(waitMs)) - 1)];
+            pOutputSettling = false;
+            setLastError(QStringLiteral("WaylandScreenCapture: Waiting for the shared display to come back"));
+            pRestartTimer->start(delayMs);
+            return;
+        }
+
+        //Showed up after a wait: the compositor may list the output before it can stream it, so settle briefly
+        if (pOutputWaitAttempts > 0 && !pOutputSettling && sharedOutputPresent())
+        {
+            pOutputSettling = true;
+            pRestartTimer->start(settleMs);
+            return;
+        }
+        if (pOutputWaitAttempts >= maxWaitAttempts)
+            qWarning() << "WaylandScreenCapture: Shared display didn't come back - reconnecting anyway";
+    }
+    pOutputWaitAttempts = 0;
+    pOutputSettling = false;
+    pRestartTimer->stop();
+
     teardownPipeWire();
     dropPendingRequest();
     closeSession();
     startNegotiation();
+}
+
+//Whether the monitor we were sharing is currently present. Matched by position like AmbiLED's test
+//pattern screen lookup (sizes can differ in rounding), plus the screen count, so another monitor
+//briefly sliding into its spot while it's away doesn't count. Unknown monitor = nothing to wait for.
+bool WaylandScreenCapture::sharedOutputPresent() const
+{
+    QRect shared = outputGeometry();
+    if (!shared.isValid())
+        return true;
+
+    const QList<QScreen *> screens = QGuiApplication::screens();
+    if (screens.size() < pSharedScreenCount)
+        return false;
+    for (QScreen *screen : screens)
+        if (screen->geometry().topLeft() == shared.topLeft())
+            return true;
+    return false;
+}
+
+//Capture was re-enabled by the user - see header. Queued so it always runs on our own thread.
+void WaylandScreenCapture::reactivate()
+{
+    QMetaObject::invokeMethod(this, [this]
+    {
+        if (pFormatNegotiated)
+            return;
+
+        qInfo() << "WaylandScreenCapture: Capture re-enabled without an active stream - setting up again";
+        pPermanentlyFailed = false;
+        pUserDenied = false;
+        pRestartAttempts = 0;
+        setLastError(QStringLiteral("WaylandScreenCapture: Waiting for screen-share permission"));
+        restart(false);
+    });
 }
 
 //Close the portal session (if any), ignoring the Closed signal that may follow
@@ -433,6 +501,7 @@ void WaylandScreenCapture::onStartResponse(uint response, QVariantMap results)
         QMutexLocker locker(&pFrameMutex);
         pOutputGeometry = (hasPosition && hasSize) ? QRect(x, y, width, height) : QRect();
     }
+    pSharedScreenCount = QGuiApplication::screens().size();
     if (!hasPosition || !hasSize)
         qInfo() << "WaylandScreenCapture: Portal didn't report which monitor is shared (position/size missing)";
 

@@ -58,7 +58,9 @@ The source tree mirrors this pipeline:
   while copying ([imageutils.h](src/common/imageutils.h)), so frames are only copied at the
   app's capture rate and not at all when nothing new arrived. If the stream or portal session
   breaks, or the system resumes from suspend, it reconnects itself with backoff, reusing the
-  `restore_token` so no dialog is shown.
+  `restore_token` so no dialog is shown - first waiting for the shared monitor to reappear, since
+  after resume it can take a while to come back. Toggling *Capture* off and on sets the share up
+  again whenever it isn't streaming (e.g. after the share was denied or revoked).
   [screenmanager.h](src/capture/screenmanager.h)'s `ScreenManager` owns the active backend,
   auto-selecting Wayland or X11 at startup based on `QGuiApplication::platformName()`, polls it
   on a timer at the configured frame rate, and emits `readyFrame` with the captured image (or,

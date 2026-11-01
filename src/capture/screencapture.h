@@ -30,6 +30,10 @@ public:
     //whole root window, which can span several screens).
     virtual QRect outputGeometry() const {return QRect();}
 
+    //Capture was (re-)enabled by the user - backends that can end up stuck without a source
+    //(Wayland, after a revoked or failed share) use this to set up again. Thread-safe.
+    virtual void reactivate() {}
+
     //Backends that downsample while copying out of the system's frame buffer (Wayland, X11) make
     //frames this many times smaller in each dimension (power of two) - see ImageUtils::downsample32
     static constexpr int DownsampleFactor = 4;

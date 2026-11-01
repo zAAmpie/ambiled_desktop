@@ -34,7 +34,7 @@ public:
     //Where the captured output sits on the desktop, if the backend knows (thread-safe) - see ScreenCapture::outputGeometry
     QRect capturedOutputGeometry();
 
-    //Enable/disable capturing (thread-safe)
+    //Enable/disable capturing (thread-safe) - enabling also asks the backend to reactivate a broken source
     void setEnabled(bool state);
     void enable() {setEnabled(true);}
     void disable() {setEnabled(false);}
